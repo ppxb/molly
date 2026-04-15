@@ -1,4 +1,5 @@
 'use client'
+
 import { useEffect, useState } from 'react'
 
 export default function Home() {
@@ -10,7 +11,7 @@ export default function Home() {
       const { message } = await res.json()
       setMessage(message)
     }
-    fetchData()
+    void fetchData()
   }, [])
 
   if (!message) return <p>Loading...</p>
