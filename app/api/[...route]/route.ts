@@ -1,12 +1,13 @@
-import { Hono } from 'hono'
 import { handle } from 'hono/vercel'
 
-const app = new Hono().basePath('/api')
+import { uploadApi } from '@/lib/upload/server/router'
 
-app.get('/hello', c => {
-  return c.json({
-    message: 'All changes, fixes, and updates'
-  })
-})
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-export const GET = handle(app)
+export const GET = handle(uploadApi)
+export const POST = handle(uploadApi)
+export const PUT = handle(uploadApi)
+export const PATCH = handle(uploadApi)
+export const DELETE = handle(uploadApi)
+export const OPTIONS = handle(uploadApi)
