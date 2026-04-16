@@ -3,13 +3,13 @@
 import { useMemo, useState } from 'react'
 import { CircleOffIcon, PauseIcon, PlayIcon, XIcon } from 'lucide-react'
 
+import { IconActionButton } from '@/components/icon-action-button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatBytes } from '@/components/upload/upload-format'
-import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
 import { getTaskStatusText } from '@/components/upload/upload-status'
-import { IconActionButton } from '@/components/icon-action-button'
+import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
 
 interface UploadFloatingPanelProps {
   tasks: UploadQueueTask[]
@@ -37,6 +37,9 @@ export function UploadFloatingPanel({
   const [collapsed, setCollapsed] = useState(false)
 
   const canClose = overview.remainingTasks === 0
+  const hasActiveTasks = tasks.some(task => task.status === 'running' || task.status === 'queued')
+  const canToggleAllTasks = overview.remainingTasks > 0
+  const shouldPauseAllTasks = hasActiveTasks
 
   const sortedTasks = useMemo(() => tasks.slice().sort((a, b) => b.createdAt - a.createdAt), [tasks])
 
@@ -61,8 +64,12 @@ export function UploadFloatingPanel({
                 onClick={onCancelAll}
                 icon={<CircleOffIcon className="size-4" />}
               />
-              <IconActionButton label="暂停全部任务" onClick={onPauseAll} icon={<PauseIcon className="size-4" />} />
-              <IconActionButton label="继续全部任务" onClick={onContinueAll} icon={<PlayIcon className="size-4" />} />
+              <IconActionButton
+                label={shouldPauseAllTasks ? '暂停全部任务' : '继续全部任务'}
+                onClick={shouldPauseAllTasks ? onPauseAll : onContinueAll}
+                disabled={!canToggleAllTasks}
+                icon={shouldPauseAllTasks ? <PauseIcon className="size-4" /> : <PlayIcon className="size-4" />}
+              />
               <IconActionButton
                 label="关闭面板"
                 disabled={!canClose}
@@ -78,8 +85,8 @@ export function UploadFloatingPanel({
             <div className="space-y-3">
               {sortedTasks.map(task => {
                 const canCancel = task.status !== 'done'
-                const canPause = task.status === 'running' || task.status === 'queued' || task.status === 'error'
-                const canContinue = task.status === 'paused' || task.status === 'error'
+                const shouldPauseTask = task.status === 'running' || task.status === 'queued'
+                const canToggleTask = shouldPauseTask || task.status === 'paused' || task.status === 'error'
                 const showProgress = task.status !== 'queued'
 
                 return (
@@ -100,16 +107,16 @@ export function UploadFloatingPanel({
                           icon={<CircleOffIcon className="size-4" />}
                         />
                         <IconActionButton
-                          label="暂停上传"
-                          onClick={() => onPauseTask(task.id)}
-                          disabled={!canPause}
-                          icon={<PauseIcon className="size-4" />}
-                        />
-                        <IconActionButton
-                          label="继续上传"
-                          onClick={() => onContinueTask(task.id)}
-                          disabled={!canContinue}
-                          icon={<PlayIcon className="size-4" />}
+                          label={shouldPauseTask ? '暂停上传' : '继续上传'}
+                          onClick={() => {
+                            if (shouldPauseTask) {
+                              onPauseTask(task.id)
+                              return
+                            }
+                            onContinueTask(task.id)
+                          }}
+                          disabled={!canToggleTask}
+                          icon={shouldPauseTask ? <PauseIcon className="size-4" /> : <PlayIcon className="size-4" />}
                         />
                       </div>
                     </div>
