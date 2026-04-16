@@ -1,0 +1,477 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import type { UploadStage, UploadStrategy, UploadedFileRecord } from '@/lib/upload/shared'
+import { DEFAULT_MULTIPART_CHUNK_SIZE, DEFAULT_MULTIPART_THRESHOLD } from '@/lib/upload/shared'
+import { uploadFile } from '@/lib/upload/client/uploader'
+import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
+
+interface UseUploadQueueOptions {
+  initialConcurrency?: number
+  onTaskDone?: (file: UploadedFileRecord) => Promise<void> | void
+}
+
+interface UpdateTaskPatch {
+  status?: UploadQueueTask['status']
+  stage?: UploadStage
+  stageMessage?: string
+  loadedBytes?: number
+  totalBytes?: number
+  percent?: number
+  strategy?: UploadStrategy | 'pending'
+  instantUpload?: boolean
+  uploadedFile?: UploadedFileRecord | null
+  errorMessage?: string | null
+}
+
+type AbortIntent = 'pause' | 'cancel'
+
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0
+  }
+
+  return Math.min(100, Math.max(0, value))
+}
+
+/**
+ * 对“已上传字节”做指数平滑，降低高频回调导致的数值抖动。
+ *
+ * 设计要点：
+ * 1. 始终单调递增（不回退）
+ * 2. 按增量做比例推进，避免瞬时跳变
+ * 3. 最终完成态会由 done 补丁直接对齐到真实值
+ */
+function smoothLoadedBytes(previousLoaded: number, targetLoaded: number) {
+  const monotonicTarget = Math.max(previousLoaded, targetLoaded)
+  const delta = monotonicTarget - previousLoaded
+  if (delta <= 0) {
+    return previousLoaded
+  }
+
+  const smoothedStep = Math.max(1, Math.ceil(delta * 0.35))
+  return Math.min(monotonicTarget, previousLoaded + smoothedStep)
+}
+
+function createTaskFingerprint(file: File) {
+  return `${file.name}:${file.size}:${file.lastModified}`
+}
+
+function createTaskFromFile(file: File): UploadQueueTask {
+  return {
+    id: crypto.randomUUID(),
+    file,
+    fileName: file.name,
+    fileSize: file.size,
+    fileFingerprint: createTaskFingerprint(file),
+    createdAt: Date.now(),
+    status: 'queued',
+    stage: 'idle',
+    stageMessage: '等待上传',
+    loadedBytes: 0,
+    totalBytes: file.size,
+    percent: 0,
+    strategy: 'pending',
+    instantUpload: false,
+    uploadedFile: null,
+    errorMessage: null
+  }
+}
+
+/**
+ * 上传队列 Hook（调度层）
+ *
+ * 语义约定：
+ * - 取消：从面板移除任务（若在上传中会先中断请求）
+ * - 暂停：任务保留在面板，可继续
+ * - 继续：paused/error 任务回到 queued，等待并发调度
+ */
+export function useUploadQueue(options: UseUploadQueueOptions = {}) {
+  const [tasks, setTasks] = useState<UploadQueueTask[]>([])
+  const [concurrency] = useState(Math.max(1, options.initialConcurrency ?? 3))
+  const [isQueueActive, setIsQueueActive] = useState(false)
+
+  const tasksRef = useRef<UploadQueueTask[]>([])
+  const onTaskDoneRef = useRef(options.onTaskDone)
+  const launchingTaskIdsRef = useRef<Set<string>>(new Set())
+  const taskControllersRef = useRef<Map<string, AbortController>>(new Map())
+  const taskAbortIntentRef = useRef<Map<string, AbortIntent>>(new Map())
+
+  useEffect(() => {
+    tasksRef.current = tasks
+  }, [tasks])
+
+  useEffect(() => {
+    onTaskDoneRef.current = options.onTaskDone
+  }, [options.onTaskDone])
+
+  const patchTask = useCallback((taskId: string, patch: UpdateTaskPatch) => {
+    setTasks(previous =>
+      previous.map(task => {
+        if (task.id !== taskId) {
+          return task
+        }
+
+        const hasLoadedPatch = typeof patch.loadedBytes === 'number'
+        const isRealtimeUploading =
+          patch.status === 'running' ||
+          task.status === 'running' ||
+          patch.stage === 'uploading' ||
+          task.stage === 'uploading' ||
+          patch.stage === 'hashing' ||
+          task.stage === 'hashing'
+
+        let loadedBytes = task.loadedBytes
+        if (hasLoadedPatch) {
+          const targetLoadedBytes = patch.loadedBytes ?? task.loadedBytes
+          loadedBytes = isRealtimeUploading ? smoothLoadedBytes(task.loadedBytes, targetLoadedBytes) : targetLoadedBytes
+        }
+
+        const totalBytes = patch.totalBytes ?? task.totalBytes
+        const percent = patch.percent ?? clampPercent(totalBytes > 0 ? (loadedBytes / totalBytes) * 100 : 0)
+
+        return {
+          ...task,
+          ...patch,
+          loadedBytes,
+          totalBytes,
+          percent
+        }
+      })
+    )
+  }, [])
+
+  const getTaskById = useCallback((taskId: string) => tasksRef.current.find(task => task.id === taskId) ?? null, [])
+
+  const runTask = useCallback(
+    async (taskId: string) => {
+      const task = getTaskById(taskId)
+      if (!task || task.status !== 'queued') {
+        launchingTaskIdsRef.current.delete(taskId)
+        return
+      }
+
+      const controller = new AbortController()
+      taskControllersRef.current.set(taskId, controller)
+
+      patchTask(taskId, {
+        status: 'running',
+        stage: 'checking',
+        stageMessage: '准备上传...',
+        loadedBytes: 0,
+        totalBytes: task.fileSize,
+        percent: 0,
+        errorMessage: null
+      })
+
+      try {
+        const result = await uploadFile({
+          file: task.file,
+          signal: controller.signal,
+          multipartThreshold: DEFAULT_MULTIPART_THRESHOLD,
+          chunkSize: DEFAULT_MULTIPART_CHUNK_SIZE,
+          onStageChange: (stage, stageMessage) => {
+            patchTask(taskId, {
+              stage,
+              stageMessage
+            })
+          },
+          onProgress: progress => {
+            patchTask(taskId, {
+              loadedBytes: progress.loaded,
+              totalBytes: progress.total,
+              percent: progress.percent
+            })
+          }
+        })
+
+        patchTask(taskId, {
+          status: 'done',
+          stage: 'done',
+          stageMessage: result.instantUpload ? '秒传完成（复用已存在对象）' : '上传完成',
+          strategy: result.strategy,
+          instantUpload: result.instantUpload,
+          uploadedFile: result.file,
+          loadedBytes: task.fileSize,
+          totalBytes: task.fileSize,
+          percent: 100,
+          errorMessage: null
+        })
+
+        await onTaskDoneRef.current?.(result.file)
+      } catch (error) {
+        const isAbort = error instanceof DOMException && error.name === 'AbortError'
+        const abortIntent = taskAbortIntentRef.current.get(taskId)
+
+        // 取消语义：任务直接从队列移除，不再显示
+        if (isAbort && abortIntent === 'cancel') {
+          return
+        }
+
+        if (isAbort && abortIntent === 'pause') {
+          patchTask(taskId, {
+            status: 'paused',
+            stage: 'idle',
+            stageMessage: '已暂停，可点击继续上传',
+            errorMessage: null
+          })
+          return
+        }
+
+        patchTask(taskId, {
+          status: isAbort ? 'paused' : 'error',
+          stage: isAbort ? 'idle' : 'error',
+          stageMessage: isAbort
+            ? '已暂停，可点击继续上传'
+            : error instanceof Error
+              ? error.message
+              : '上传失败，请稍后重试',
+          errorMessage: isAbort ? null : error instanceof Error ? error.message : '上传失败'
+        })
+      } finally {
+        taskControllersRef.current.delete(taskId)
+        taskAbortIntentRef.current.delete(taskId)
+        launchingTaskIdsRef.current.delete(taskId)
+      }
+    },
+    [getTaskById, patchTask]
+  )
+
+  useEffect(() => {
+    if (!isQueueActive) {
+      return
+    }
+
+    const runningCount = tasks.filter(task => task.status === 'running').length
+    const launchingCount = launchingTaskIdsRef.current.size
+    const slots = concurrency - runningCount - launchingCount
+    if (slots <= 0) {
+      return
+    }
+
+    const queuedTasks = tasks.filter(task => task.status === 'queued').slice(0, slots)
+    for (const queuedTask of queuedTasks) {
+      if (launchingTaskIdsRef.current.has(queuedTask.id)) {
+        continue
+      }
+
+      launchingTaskIdsRef.current.add(queuedTask.id)
+      void runTask(queuedTask.id)
+    }
+  }, [concurrency, isQueueActive, runTask, tasks])
+
+  useEffect(() => {
+    if (!isQueueActive) {
+      return
+    }
+
+    const hasQueued = tasks.some(task => task.status === 'queued')
+    const hasRunning = tasks.some(task => task.status === 'running') || launchingTaskIdsRef.current.size > 0
+    if (!hasQueued && !hasRunning) {
+      setIsQueueActive(false)
+    }
+  }, [isQueueActive, tasks])
+
+  const addFiles = useCallback((incomingFiles: File[] | FileList) => {
+    const fileList = Array.isArray(incomingFiles) ? incomingFiles : Array.from(incomingFiles)
+    if (fileList.length === 0) {
+      return
+    }
+
+    setTasks(previous => {
+      const existingFingerprints = new Set(previous.map(task => task.fileFingerprint))
+      const newTasks = fileList
+        .filter(file => !existingFingerprints.has(createTaskFingerprint(file)))
+        .map(file => createTaskFromFile(file))
+
+      return previous.concat(newTasks)
+    })
+  }, [])
+
+  const continueTask = useCallback(
+    (taskId: string) => {
+      const task = getTaskById(taskId)
+      if (!task || task.status === 'running' || task.status === 'done') {
+        return
+      }
+
+      patchTask(taskId, {
+        status: 'queued',
+        stage: 'idle',
+        stageMessage: '等待上传',
+        loadedBytes: 0,
+        totalBytes: task.fileSize,
+        percent: 0,
+        strategy: 'pending',
+        instantUpload: false,
+        uploadedFile: null,
+        errorMessage: null
+      })
+      setIsQueueActive(true)
+    },
+    [getTaskById, patchTask]
+  )
+
+  const pauseTask = useCallback(
+    (taskId: string) => {
+      const task = getTaskById(taskId)
+      if (!task || task.status === 'done') {
+        return
+      }
+
+      if (task.status === 'running') {
+        const controller = taskControllersRef.current.get(taskId)
+        if (controller) {
+          taskAbortIntentRef.current.set(taskId, 'pause')
+          controller.abort()
+          return
+        }
+      }
+
+      patchTask(taskId, {
+        status: 'paused',
+        stage: 'idle',
+        stageMessage: '已暂停，可点击继续上传',
+        errorMessage: null
+      })
+    },
+    [getTaskById, patchTask]
+  )
+
+  const cancelTask = useCallback(
+    (taskId: string) => {
+      const task = getTaskById(taskId)
+      if (!task) {
+        return
+      }
+
+      if (task.status === 'running') {
+        const controller = taskControllersRef.current.get(taskId)
+        if (controller) {
+          taskAbortIntentRef.current.set(taskId, 'cancel')
+          controller.abort()
+        }
+      }
+
+      setTasks(previous => previous.filter(item => item.id !== taskId))
+    },
+    [getTaskById]
+  )
+
+  const continueAllTasks = useCallback(() => {
+    setTasks(previous =>
+      previous.map(task => {
+        if (task.status === 'done') {
+          return task
+        }
+
+        return {
+          ...task,
+          status: 'queued',
+          stage: 'idle',
+          stageMessage: '等待上传',
+          loadedBytes: 0,
+          totalBytes: task.fileSize,
+          percent: 0,
+          strategy: 'pending',
+          instantUpload: false,
+          uploadedFile: null,
+          errorMessage: null
+        }
+      })
+    )
+    setIsQueueActive(true)
+  }, [])
+
+  const pauseAllTasks = useCallback(() => {
+    setIsQueueActive(false)
+
+    for (const [taskId, controller] of taskControllersRef.current.entries()) {
+      taskAbortIntentRef.current.set(taskId, 'pause')
+      controller.abort()
+    }
+
+    setTasks(previous =>
+      previous.map(task => {
+        if (task.status === 'done' || task.status === 'running') {
+          return task
+        }
+
+        return {
+          ...task,
+          status: 'paused',
+          stage: 'idle',
+          stageMessage: '已暂停，可点击继续上传',
+          errorMessage: null
+        }
+      })
+    )
+  }, [])
+
+  const cancelAllTasks = useCallback(() => {
+    setIsQueueActive(false)
+
+    for (const [taskId, controller] of taskControllersRef.current.entries()) {
+      taskAbortIntentRef.current.set(taskId, 'cancel')
+      controller.abort()
+    }
+
+    launchingTaskIdsRef.current.clear()
+    taskControllersRef.current.clear()
+    taskAbortIntentRef.current.clear()
+    setTasks([])
+  }, [])
+
+  const overview = useMemo<UploadQueueOverview>(() => {
+    const totalTasks = tasks.length
+    const runningTasks = tasks.filter(task => task.status === 'running').length
+    const queuedTasks = tasks.filter(task => task.status === 'queued').length
+    const doneTasks = tasks.filter(task => task.status === 'done').length
+    const pausedTasks = tasks.filter(task => task.status === 'paused').length
+    const errorTasks = tasks.filter(task => task.status === 'error').length
+    const remainingTasks = tasks.filter(
+      task =>
+        task.status === 'queued' || task.status === 'running' || task.status === 'paused' || task.status === 'error'
+    ).length
+
+    let overallStatusText = '暂无上传任务'
+    if (totalTasks > 0) {
+      if (runningTasks > 0) {
+        overallStatusText = '正在上传'
+      } else if (remainingTasks === 0) {
+        overallStatusText = '上传已完成'
+      } else if (!isQueueActive || pausedTasks > 0) {
+        overallStatusText = '上传已暂停'
+      } else if (errorTasks > 0 && queuedTasks === 0) {
+        overallStatusText = '上传异常'
+      } else if (queuedTasks > 0) {
+        overallStatusText = '等待上传'
+      } else {
+        overallStatusText = '上传已暂停'
+      }
+    }
+
+    return {
+      totalTasks,
+      remainingTasks,
+      runningTasks,
+      queuedTasks,
+      doneTasks,
+      pausedTasks,
+      overallStatusText
+    }
+  }, [isQueueActive, tasks])
+
+  return {
+    tasks,
+    overview,
+    addFiles,
+    cancelTask,
+    pauseTask,
+    continueTask,
+    cancelAllTasks,
+    pauseAllTasks,
+    continueAllTasks
+  }
+}
