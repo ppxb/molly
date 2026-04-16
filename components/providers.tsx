@@ -10,7 +10,13 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" enableSystem={true} disableTransitionOnChange>
       <TooltipProvider>{children}</TooltipProvider>
-      <Toaster />
+      <Toaster
+        toastOptions={{
+          classNames: {
+            toast: 'rounded-none! font-sans'
+          }
+        }}
+      />
     </ThemeProvider>
   )
 }
