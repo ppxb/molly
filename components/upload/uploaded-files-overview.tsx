@@ -54,7 +54,7 @@ export function UploadedFilesOverview({ files, isLoading, onRefresh, onOpenFile 
               <tbody>
                 {files.map(file => (
                   <tr key={file.id} className="border-b last:border-b-0">
-                    <td className="max-w-[260px] py-2 pr-4">
+                    <td className="max-w-65 py-2 pr-4">
                       <p className="truncate font-medium">{file.fileName}</p>
                       <p className="truncate text-xs text-muted-foreground">{file.fileHash.slice(0, 20)}...</p>
                     </td>

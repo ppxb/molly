@@ -8,6 +8,7 @@ import { UploadFabMenu } from '@/components/upload-fab-menu'
 import { UploadFloatingPanel } from '@/components/upload-floating-panel'
 import { UploadedFilesOverview } from '@/components/upload/uploaded-files-overview'
 import { getFileAccessUrlRequest, listUploadedFilesRequest } from '@/lib/upload/client/api'
+import { scheduleHashWorkerPrewarm } from '@/lib/upload/client/hash'
 import type { UploadedFileRecord } from '@/lib/upload/shared'
 import { ThemeToggle } from '../toggle-theme'
 
@@ -43,6 +44,10 @@ export function UploadDashboard() {
   useEffect(() => {
     void loadFiles()
   }, [loadFiles])
+
+  useEffect(() => {
+    scheduleHashWorkerPrewarm()
+  }, [])
 
   useEffect(() => {
     if (queue.tasks.length === 0) {

@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { UploadStage, UploadStrategy, UploadedFileRecord } from '@/lib/upload/shared'
-import { DEFAULT_MULTIPART_CHUNK_SIZE, DEFAULT_MULTIPART_THRESHOLD } from '@/lib/upload/shared'
-import { uploadFile } from '@/lib/upload/client/uploader'
 import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
+import { uploadFile } from '@/lib/upload/client/uploader'
+import { DEFAULT_MULTIPART_CHUNK_SIZE, DEFAULT_MULTIPART_THRESHOLD } from '@/lib/upload/shared'
+import type { UploadStage, UploadStrategy, UploadedFileRecord } from '@/lib/upload/shared'
 
 interface UseUploadQueueOptions {
   initialConcurrency?: number
@@ -18,7 +18,6 @@ interface UpdateTaskPatch {
   stageMessage?: string
   loadedBytes?: number
   totalBytes?: number
-  percent?: number
   strategy?: UploadStrategy | 'pending'
   instantUpload?: boolean
   uploadedFile?: UploadedFileRecord | null
@@ -33,25 +32,6 @@ function clampPercent(value: number) {
   }
 
   return Math.min(100, Math.max(0, value))
-}
-
-/**
- * 对“已上传字节”做指数平滑，降低高频回调导致的数值抖动。
- *
- * 设计要点：
- * 1. 始终单调递增（不回退）
- * 2. 按增量做比例推进，避免瞬时跳变
- * 3. 最终完成态会由 done 补丁直接对齐到真实值
- */
-function smoothLoadedBytes(previousLoaded: number, targetLoaded: number) {
-  const monotonicTarget = Math.max(previousLoaded, targetLoaded)
-  const delta = monotonicTarget - previousLoaded
-  if (delta <= 0) {
-    return previousLoaded
-  }
-
-  const smoothedStep = Math.max(1, Math.ceil(delta * 0.35))
-  return Math.min(monotonicTarget, previousLoaded + smoothedStep)
 }
 
 function createTaskFingerprint(file: File) {
@@ -79,14 +59,6 @@ function createTaskFromFile(file: File): UploadQueueTask {
   }
 }
 
-/**
- * 上传队列 Hook（调度层）
- *
- * 语义约定：
- * - 取消：从面板移除任务（若在上传中会先中断请求）
- * - 暂停：任务保留在面板，可继续
- * - 继续：paused/error 任务回到 queued，等待并发调度
- */
 export function useUploadQueue(options: UseUploadQueueOptions = {}) {
   const [tasks, setTasks] = useState<UploadQueueTask[]>([])
   const [concurrency] = useState(Math.max(1, options.initialConcurrency ?? 3))
@@ -113,23 +85,11 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
           return task
         }
 
-        const hasLoadedPatch = typeof patch.loadedBytes === 'number'
-        const isRealtimeUploading =
-          patch.status === 'running' ||
-          task.status === 'running' ||
-          patch.stage === 'uploading' ||
-          task.stage === 'uploading' ||
-          patch.stage === 'hashing' ||
-          task.stage === 'hashing'
-
-        let loadedBytes = task.loadedBytes
-        if (hasLoadedPatch) {
-          const targetLoadedBytes = patch.loadedBytes ?? task.loadedBytes
-          loadedBytes = isRealtimeUploading ? smoothLoadedBytes(task.loadedBytes, targetLoadedBytes) : targetLoadedBytes
-        }
-
         const totalBytes = patch.totalBytes ?? task.totalBytes
-        const percent = patch.percent ?? clampPercent(totalBytes > 0 ? (loadedBytes / totalBytes) * 100 : 0)
+        const rawLoadedBytes = patch.loadedBytes ?? task.loadedBytes
+        const loadedBytes =
+          totalBytes > 0 ? Math.min(Math.max(0, rawLoadedBytes), totalBytes) : Math.max(0, rawLoadedBytes)
+        const percent = clampPercent(totalBytes > 0 ? (loadedBytes / totalBytes) * 100 : 0)
 
         return {
           ...task,
@@ -161,7 +121,6 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         stageMessage: '准备上传...',
         loadedBytes: 0,
         totalBytes: task.fileSize,
-        percent: 0,
         errorMessage: null
       })
 
@@ -180,8 +139,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
           onProgress: progress => {
             patchTask(taskId, {
               loadedBytes: progress.loaded,
-              totalBytes: progress.total,
-              percent: progress.percent
+              totalBytes: progress.total
             })
           }
         })
@@ -195,7 +153,6 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
           uploadedFile: result.file,
           loadedBytes: task.fileSize,
           totalBytes: task.fileSize,
-          percent: 100,
           errorMessage: null
         })
 
@@ -204,7 +161,6 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         const isAbort = error instanceof DOMException && error.name === 'AbortError'
         const abortIntent = taskAbortIntentRef.current.get(taskId)
 
-        // 取消语义：任务直接从队列移除，不再显示
         if (isAbort && abortIntent === 'cancel') {
           return
         }
@@ -302,7 +258,6 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         stageMessage: '等待上传',
         loadedBytes: 0,
         totalBytes: task.fileSize,
-        percent: 0,
         strategy: 'pending',
         instantUpload: false,
         uploadedFile: null,
@@ -373,7 +328,6 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
           stageMessage: '等待上传',
           loadedBytes: 0,
           totalBytes: task.fileSize,
-          percent: 0,
           strategy: 'pending',
           instantUpload: false,
           uploadedFile: null,
