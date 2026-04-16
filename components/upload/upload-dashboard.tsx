@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 
 import { useUploadQueue } from '@/components/upload/hooks/use-upload-queue'
 import { UploadFabMenu } from '@/components/upload-fab-menu'
-import { UploadFloatingPanel } from '@/components/upload/upload-floating-panel'
+import { UploadFloatingPanel } from '@/components/upload-floating-panel'
 import { UploadedFilesOverview } from '@/components/upload/uploaded-files-overview'
 import { getFileAccessUrlRequest, listUploadedFilesRequest } from '@/lib/upload/client/api'
 import type { UploadedFileRecord } from '@/lib/upload/shared'
