@@ -5,5 +5,10 @@
   "semi": false,
   "trailingComma": "none",
   "singleQuote": true,
+  "sortTailwindcss": {
+    "stylesheet": "./app/globals.css",
+    "functions": ["clsx", "cn"],
+    "preserveWhitespace": false
+  },
   "ignorePatterns": ["node_modules", "dist", ".next", "pnpm-lock.yaml", "*.md"]
 }
