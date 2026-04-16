@@ -169,7 +169,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
           patchTask(taskId, {
             status: 'paused',
             stage: 'idle',
-            stageMessage: '已暂停，可点击继续上传',
+            stageMessage: '已暂停',
             errorMessage: null
           })
           return
@@ -178,11 +178,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         patchTask(taskId, {
           status: isAbort ? 'paused' : 'error',
           stage: isAbort ? 'idle' : 'error',
-          stageMessage: isAbort
-            ? '已暂停，可点击继续上传'
-            : error instanceof Error
-              ? error.message
-              : '上传失败，请稍后重试',
+          stageMessage: isAbort ? '已暂停' : error instanceof Error ? error.message : '上传失败，请稍后重试',
           errorMessage: isAbort ? null : error instanceof Error ? error.message : '上传失败'
         })
       } finally {
@@ -287,7 +283,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
       patchTask(taskId, {
         status: 'paused',
         stage: 'idle',
-        stageMessage: '已暂停，可点击继续上传',
+        stageMessage: '已暂停',
         errorMessage: null
       })
     },
@@ -356,7 +352,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
           ...task,
           status: 'paused',
           stage: 'idle',
-          stageMessage: '已暂停，可点击继续上传',
+          stageMessage: '已暂停',
           errorMessage: null
         }
       })

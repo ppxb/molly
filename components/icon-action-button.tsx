@@ -14,7 +14,13 @@ export function IconActionButton(props: IconActionButtonProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon-sm" onClick={props.onClick} disabled={props.disabled}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="hover:cursor-pointer"
+          onClick={props.onClick}
+          disabled={props.disabled}
+        >
           {props.icon}
           <span className="sr-only">{props.label}</span>
         </Button>
