@@ -41,15 +41,12 @@ export function UploadFloatingPanel({
   const canToggleAllTasks = overview.remainingTasks > 0
   const shouldPauseAllTasks = hasActiveTasks
 
-  const sortedTasks = useMemo(() => tasks.slice().sort((a, b) => b.createdAt - a.createdAt), [tasks])
+  const sortedTasks = useMemo(() => tasks.slice().sort((a, b) => a.createdAt - b.createdAt), [tasks])
 
   return (
-    <div className="fixed right-6 bottom-20 z-40 w-100 max-w-[calc(100vw-24px)]">
-      <div
-        className="overflow-hidden border bg-background shadow-md"
-        onClick={() => setCollapsed(previous => !previous)}
-      >
-        <div className="border-b p-3">
+    <div className="fixed right-12 bottom-24 z-40 w-100 max-w-[calc(100vw-24px)]">
+      <div className="overflow-hidden border bg-background shadow-md">
+        <div className="cursor-pointer p-3" onClick={() => setCollapsed(previous => !previous)}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <p className="text-sm font-medium">{overview.overallStatusText}</p>
@@ -58,7 +55,7 @@ export function UploadFloatingPanel({
               </Badge>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1" onClick={event => event.stopPropagation()}>
               <IconActionButton
                 label="取消全部任务"
                 onClick={onCancelAll}

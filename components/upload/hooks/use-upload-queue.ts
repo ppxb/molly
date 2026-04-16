@@ -147,7 +147,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         patchTask(taskId, {
           status: 'done',
           stage: 'done',
-          stageMessage: result.instantUpload ? '秒传完成（复用已存在对象）' : '上传完成',
+          stageMessage: result.instantUpload ? '秒传完成' : '上传完成',
           strategy: result.strategy,
           instantUpload: result.instantUpload,
           uploadedFile: result.file,
