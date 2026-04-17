@@ -5,7 +5,7 @@ import { ArrowDownToLine, Eye, Loader2, RefreshCcw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatBytes } from '@/components/upload/upload-format'
+import { formatBytes } from '@/lib/utils'
 import type { UploadedFileRecord } from '@/lib/upload/shared'
 
 interface UploadedFilesOverviewProps {

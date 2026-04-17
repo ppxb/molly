@@ -12,11 +12,6 @@ import { scheduleHashWorkerPrewarm } from '@/lib/upload/client/hash'
 import type { UploadedFileRecord } from '@/lib/upload/shared'
 import { ThemeToggle } from '../toggle-theme'
 
-/**
- * 页面级编排：
- * - 不再展示总览统计卡片，改为悬浮菜单 + 悬浮上传面板
- * - 上传文件入口由 Dropdown 触发，上传状态在右下角面板持续展示
- */
 export function UploadDashboard() {
   const [files, setFiles] = useState<UploadedFileRecord[]>([])
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
@@ -91,6 +86,7 @@ export function UploadDashboard() {
           onContinueTask={queue.continueTask}
           onRequestClose={() => {
             if (queue.overview.remainingTasks === 0) {
+              queue.cancelAllTasks()
               setIsPanelVisible(false)
             }
           }}

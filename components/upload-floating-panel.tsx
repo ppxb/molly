@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CircleOffIcon, PauseIcon, PlayIcon, XIcon } from 'lucide-react'
 
 import { IconActionButton } from '@/components/icon-action-button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { formatBytes } from '@/components/upload/upload-format'
+import { formatBytes } from '@/lib/utils'
 import { getTaskStatusText } from '@/components/upload/upload-status'
 import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
 
@@ -51,9 +51,7 @@ function TaskItem({ task, onCancel, onPause, onContinue }: TaskItemProps) {
       </div>
 
       <div className="flex items-center justify-between gap-2 font-mono text-xs text-muted-foreground">
-        <span>
-          {formatBytes(task.loadedBytes)} / {formatBytes(task.totalBytes)}
-        </span>
+        <span>{task.totalBytes > 0 ? `${formatBytes(task.loadedBytes)} / ${formatBytes(task.totalBytes)}` : '-'}</span>
         <div className="max-w-[60%] truncate">{getTaskStatusText(task)}</div>
       </div>
 
@@ -97,7 +95,7 @@ export function UploadFloatingPanel({
     if (canClose) setCollapsed(false)
   }, [canClose])
 
-  const sortedTasks = useMemo(() => tasks.toSorted((a, b) => a.createdAt - b.createdAt), [tasks])
+  const sortedTasks = tasks.toSorted((a, b) => a.createdAt - b.createdAt)
 
   return (
     <div className="fixed right-12 bottom-24 z-40 w-100 max-w-[calc(100vw-24px)]">
@@ -115,6 +113,7 @@ export function UploadFloatingPanel({
               <IconActionButton
                 label="取消全部任务"
                 onClick={onCancelAll}
+                disabled={canClose}
                 icon={<CircleOffIcon className="size-4" />}
               />
               <IconActionButton

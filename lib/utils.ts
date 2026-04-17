@@ -7,13 +7,12 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatBytes(bytes: number) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let value = bytes / 1024
   let unitIndex = 0
 
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024
-    unitIndex++
+  while (bytes >= 1024 && unitIndex < units.length - 1) {
+    bytes /= 1024
+    unitIndex += 1
   }
 
-  return `${unitIndex === 0 ? value : value.toFixed(2)} ${units[unitIndex]}`
+  return `${unitIndex === 0 ? bytes : bytes.toFixed(2)} ${units[unitIndex]}`
 }
