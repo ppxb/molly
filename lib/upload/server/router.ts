@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 
+import { getParentFolderPath, isValidFolderName, joinFolderPath, normalizeFolderPath } from '@/lib/upload/path'
 import {
   DEFAULT_MULTIPART_CHUNK_SIZE,
   type FileAccessUrlResponse,
@@ -10,7 +11,9 @@ import {
   type MultipartUploadInitResponse,
   MULTIPART_MIN_PART_SIZE,
   type SingleUploadCompleteResponse,
-  type SingleUploadInitResponse
+  type SingleUploadInitResponse,
+  type UploadEntriesResponse,
+  type UploadFolderCreateResponse
 } from '@/lib/upload/shared'
 import { createObjectKey } from '@/lib/upload/server/object-key'
 import {
@@ -26,16 +29,22 @@ import {
 } from '@/lib/upload/server/s3-client'
 import {
   completeSingleUploadSession,
+  createInstantUploadedFileAlias,
   createMultipartUploadSession,
   createSingleUploadSession,
+  createUploadFolder,
+  ensureUploadFolderPathExists,
   findActiveMultipartSessionByFingerprint,
   findUploadedFileByHash,
+  findUploadedFileByPathAndName,
   findUploadedFileBySampleHash,
   getMultipartUploadSession,
   getSingleUploadSession,
+  getUploadFolderByPath,
   getUploadedFileById,
   listMultipartUploadedParts,
   listUploadedFiles,
+  listUploadFoldersByParentPath,
   registerUploadedFile,
   removeMultipartUploadSession,
   saveMultipartUploadedPart,
@@ -83,6 +92,10 @@ function asPositiveNumber(value: unknown) {
   return Number.isFinite(value) && value > 0 ? value : null
 }
 
+function asFolderPath(value: unknown) {
+  return normalizeFolderPath(typeof value === 'string' ? value : '')
+}
+
 function createPendingFileHash(sourceId: string) {
   return `pending:${sourceId}`
 }
@@ -102,13 +115,76 @@ uploadApi.get('/hello', c => {
 })
 
 uploadApi.get('/uploads/files', async c => {
-  const files = await listUploadedFiles()
+  const folderPathQuery = c.req.query('path')
+  const folderPath = folderPathQuery ? normalizeFolderPath(folderPathQuery) : undefined
+  const files = await listUploadedFiles(folderPath)
   return c.json(success(files))
 })
 
-// 秒传预检：
-// 1) 提供 fileHash 时做精确匹配
-// 2) 仅提供 sampleHash + fileSize 时，只判断是否需要全量 hash
+uploadApi.get('/uploads/entries', async c => {
+  const path = asFolderPath(c.req.query('path'))
+  if (path) {
+    const folder = await getUploadFolderByPath(path)
+    if (!folder) {
+      return c.json(fail('Folder does not exist'), 404)
+    }
+  }
+
+  const [folders, files] = await Promise.all([listUploadFoldersByParentPath(path), listUploadedFiles(path)])
+
+  const data: UploadEntriesResponse = {
+    path,
+    parentPath: getParentFolderPath(path),
+    folders,
+    files
+  }
+
+  return c.json(success(data))
+})
+
+uploadApi.post('/uploads/folders', async c => {
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') {
+    return c.json(fail('Invalid request body'), 400)
+  }
+
+  const parentPath = asFolderPath(body.parentPath)
+  const folderName = asNonEmptyString(body.folderName)
+
+  if (!folderName) {
+    return c.json(fail('folderName is required'), 400)
+  }
+
+  if (!isValidFolderName(folderName)) {
+    return c.json(fail('Invalid folder name'), 400)
+  }
+
+  if (parentPath) {
+    const parent = await getUploadFolderByPath(parentPath)
+    if (!parent) {
+      return c.json(fail('Parent folder does not exist'), 404)
+    }
+  }
+
+  const existingFile = await findUploadedFileByPathAndName(parentPath, folderName)
+  if (existingFile) {
+    return c.json(fail('A file with the same name already exists in this folder'), 409)
+  }
+
+  const folderPath = joinFolderPath(parentPath, folderName)
+  const created = await createUploadFolder({
+    folderName,
+    folderPath,
+    parentPath
+  })
+
+  const data: UploadFolderCreateResponse = {
+    folder: created.folder
+  }
+
+  return c.json(success(data))
+})
+
 uploadApi.post('/uploads/instant-check', async c => {
   const body = await c.req.json().catch(() => null)
   if (!body || typeof body !== 'object') {
@@ -118,19 +194,45 @@ uploadApi.post('/uploads/instant-check', async c => {
   const fileHash = asNonEmptyString(body.fileHash)
   const fileSampleHash = asNonEmptyString(body.fileSampleHash)
   const fileSize = asPositiveNumber(body.fileSize)
+  const fileName = asNonEmptyString(body.fileName)
+  const contentType = asNonEmptyString(body.contentType) ?? 'application/octet-stream'
+  const folderPath = asFolderPath(body.folderPath)
 
   if (fileHash) {
     const existingFile = await findUploadedFileByHash(fileHash)
-    const data: InstantCheckResponse = existingFile
-      ? {
+    if (!existingFile) {
+      const data: InstantCheckResponse = {
+        instantUpload: false,
+        requiresFullHash: false
+      }
+
+      return c.json(success(data))
+    }
+
+    if (fileName) {
+      try {
+        const alias = await createInstantUploadedFileAlias({
+          sourceFile: existingFile,
+          fileName,
+          folderPath,
+          contentType
+        })
+        const data: InstantCheckResponse = {
           instantUpload: true,
           requiresFullHash: false,
-          file: existingFile
+          file: alias.file
         }
-      : {
-          instantUpload: false,
-          requiresFullHash: false
-        }
+        return c.json(success(data))
+      } catch (error) {
+        return c.json(fail(error instanceof Error ? error.message : 'Failed to create instant upload file'), 409)
+      }
+    }
+
+    const data: InstantCheckResponse = {
+      instantUpload: true,
+      requiresFullHash: false,
+      file: existingFile
+    }
 
     return c.json(success(data))
   }
@@ -164,24 +266,51 @@ uploadApi.post('/uploads/single/init', async c => {
   const fileSize = asPositiveNumber(body.fileSize)
   const fileHash = asNonEmptyString(body.fileHash)
   const fileSampleHash = asNonEmptyString(body.fileSampleHash) ?? fileHash
+  const folderPath = asFolderPath(body.folderPath)
 
   if (!fileName || !fileSize || !fileSampleHash) {
     return c.json(fail('fileName, fileSize and fileSampleHash are required'), 400)
   }
 
+  const existingAtTarget = await findUploadedFileByPathAndName(folderPath, fileName)
+  if (existingAtTarget) {
+    if (fileHash && existingAtTarget.fileHash === fileHash) {
+      const data: SingleUploadInitResponse = {
+        instantUpload: true,
+        file: existingAtTarget
+      }
+      return c.json(success(data))
+    }
+
+    return c.json(fail('A file with the same name already exists in this folder'), 409)
+  }
+
   if (fileHash) {
     const existingFile = await findUploadedFileByHash(fileHash)
     if (existingFile) {
+      let alias: Awaited<ReturnType<typeof createInstantUploadedFileAlias>>
+      try {
+        alias = await createInstantUploadedFileAlias({
+          sourceFile: existingFile,
+          fileName,
+          folderPath,
+          contentType
+        })
+      } catch (error) {
+        return c.json(fail(error instanceof Error ? error.message : 'Failed to create instant upload file'), 409)
+      }
+
       const data: SingleUploadInitResponse = {
         instantUpload: true,
-        file: existingFile
+        file: alias.file
       }
 
       return c.json(success(data))
     }
   }
 
-  const objectKey = createObjectKey(fileName)
+  await ensureUploadFolderPathExists(folderPath)
+  const objectKey = createObjectKey(fileName, folderPath)
   const uploadUrl = await createSingleUploadPresignedUrl({
     objectKey,
     contentType
@@ -190,6 +319,7 @@ uploadApi.post('/uploads/single/init', async c => {
   const session = await createSingleUploadSession({
     objectKey,
     fileName,
+    folderPath,
     contentType,
     fileSize,
     fileHash,
@@ -230,16 +360,22 @@ uploadApi.post('/uploads/single/complete', async c => {
   await assertObjectExists(session.objectKey)
   await completeSingleUploadSession(sessionId)
 
-  const registered = await registerUploadedFile({
-    fileName: session.fileName,
-    contentType: session.contentType,
-    fileSize: session.fileSize,
-    fileHash: resolvedFileHash,
-    fileSampleHash: session.fileSampleHash,
-    objectKey: session.objectKey,
-    bucket: getUploadBucket(),
-    strategy: 'single'
-  })
+  let registered: Awaited<ReturnType<typeof registerUploadedFile>>
+  try {
+    registered = await registerUploadedFile({
+      fileName: session.fileName,
+      folderPath: session.folderPath,
+      contentType: session.contentType,
+      fileSize: session.fileSize,
+      fileHash: resolvedFileHash,
+      fileSampleHash: session.fileSampleHash,
+      objectKey: session.objectKey,
+      bucket: getUploadBucket(),
+      strategy: 'single'
+    })
+  } catch (error) {
+    return c.json(fail(error instanceof Error ? error.message : 'Failed to register uploaded file'), 409)
+  }
 
   const data: SingleUploadCompleteResponse = {
     file: registered.file
@@ -261,17 +397,43 @@ uploadApi.post('/uploads/multipart/init', async c => {
   const fileSampleHash = asNonEmptyString(body.fileSampleHash) ?? fileHash
   const resumeSessionId = asNonEmptyString(body.resumeSessionId)
   const requestedChunkSize = asPositiveNumber(body.chunkSize)
+  const folderPath = asFolderPath(body.folderPath)
 
   if (!fileName || !fileSize || !fileSampleHash) {
     return c.json(fail('fileName, fileSize and fileSampleHash are required'), 400)
   }
 
+  const existingAtTarget = await findUploadedFileByPathAndName(folderPath, fileName)
+  if (existingAtTarget) {
+    if (fileHash && existingAtTarget.fileHash === fileHash) {
+      const data: MultipartUploadInitResponse = {
+        instantUpload: true,
+        file: existingAtTarget
+      }
+      return c.json(success(data))
+    }
+
+    return c.json(fail('A file with the same name already exists in this folder'), 409)
+  }
+
   if (fileHash) {
     const existingFile = await findUploadedFileByHash(fileHash)
     if (existingFile) {
+      let alias: Awaited<ReturnType<typeof createInstantUploadedFileAlias>>
+      try {
+        alias = await createInstantUploadedFileAlias({
+          sourceFile: existingFile,
+          fileName,
+          folderPath,
+          contentType
+        })
+      } catch (error) {
+        return c.json(fail(error instanceof Error ? error.message : 'Failed to create instant upload file'), 409)
+      }
+
       const data: MultipartUploadInitResponse = {
         instantUpload: true,
-        file: existingFile
+        file: alias.file
       }
 
       return c.json(success(data))
@@ -285,14 +447,18 @@ uploadApi.post('/uploads/multipart/init', async c => {
     return c.json(fail(`File is too large for multipart upload. Parts: ${totalParts}`), 400)
   }
 
+  await ensureUploadFolderPathExists(folderPath)
   const fingerprintHash = fileHash ?? fileSampleHash
   let session = resumeSessionId ? await getMultipartUploadSession(resumeSessionId) : null
+  if (session && session.folderPath !== folderPath) {
+    session = null
+  }
   if (!session) {
-    session = await findActiveMultipartSessionByFingerprint(fingerprintHash, fileSize)
+    session = await findActiveMultipartSessionByFingerprint(fingerprintHash, fileSize, folderPath)
   }
 
   if (!session) {
-    const objectKey = createObjectKey(fileName)
+    const objectKey = createObjectKey(fileName, folderPath)
     const uploadId = await createMultipartUpload({
       objectKey,
       contentType
@@ -302,6 +468,7 @@ uploadApi.post('/uploads/multipart/init', async c => {
       uploadId,
       objectKey,
       fileName,
+      folderPath,
       contentType,
       fileSize,
       fileHash,
@@ -468,16 +635,22 @@ uploadApi.post('/uploads/multipart/:sessionId/complete', async c => {
 
   await removeMultipartUploadSession(session.id)
 
-  const registered = await registerUploadedFile({
-    fileName: session.fileName,
-    contentType: session.contentType,
-    fileSize: session.fileSize,
-    fileHash: resolvedFileHash,
-    fileSampleHash: session.fileSampleHash,
-    objectKey: session.objectKey,
-    bucket: getUploadBucket(),
-    strategy: 'multipart'
-  })
+  let registered: Awaited<ReturnType<typeof registerUploadedFile>>
+  try {
+    registered = await registerUploadedFile({
+      fileName: session.fileName,
+      folderPath: session.folderPath,
+      contentType: session.contentType,
+      fileSize: session.fileSize,
+      fileHash: resolvedFileHash,
+      fileSampleHash: session.fileSampleHash,
+      objectKey: session.objectKey,
+      bucket: getUploadBucket(),
+      strategy: 'multipart'
+    })
+  } catch (error) {
+    return c.json(fail(error instanceof Error ? error.message : 'Failed to register uploaded file'), 409)
+  }
 
   return c.json(
     success({

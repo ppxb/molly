@@ -1,20 +1,23 @@
 import { randomUUID } from 'node:crypto'
 
-import { and, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq } from 'drizzle-orm'
 
 import { getDb } from '@/lib/db/client'
 import {
   multipartUploadSessionsTable,
   multipartUploadedPartsTable,
   singleUploadSessionsTable,
-  uploadedFilesTable
+  uploadedFilesTable,
+  uploadFoldersTable
 } from '@/lib/db/schema'
-import type { MultipartUploadedPart, UploadedFileRecord, UploadStrategy } from '@/lib/upload/shared'
+import { normalizeFolderPath } from '@/lib/upload/path'
+import type { MultipartUploadedPart, UploadedFileRecord, UploadFolderRecord, UploadStrategy } from '@/lib/upload/shared'
 
 interface SingleUploadSession {
   id: string
   objectKey: string
   fileName: string
+  folderPath: string
   contentType: string
   fileSize: number
   fileHash: string | null
@@ -27,6 +30,7 @@ interface MultipartUploadSession {
   uploadId: string
   objectKey: string
   fileName: string
+  folderPath: string
   contentType: string
   fileSize: number
   fileHash: string | null
@@ -46,12 +50,24 @@ function toUploadedFileRecord(row: typeof uploadedFilesTable.$inferSelect): Uplo
   return {
     id: row.id,
     fileName: row.fileName,
+    folderPath: row.folderPath,
     contentType: row.contentType,
     fileSize: row.fileSize,
     fileHash: row.fileHash,
+    fileSampleHash: row.fileSampleHash,
     objectKey: row.objectKey,
     bucket: row.bucket,
     strategy: row.strategy as UploadStrategy,
+    createdAt: row.createdAt.toISOString()
+  }
+}
+
+function toUploadFolderRecord(row: typeof uploadFoldersTable.$inferSelect): UploadFolderRecord {
+  return {
+    id: row.id,
+    folderName: row.folderName,
+    folderPath: row.folderPath,
+    parentPath: row.parentPath,
     createdAt: row.createdAt.toISOString()
   }
 }
@@ -61,6 +77,7 @@ function toSingleUploadSession(row: typeof singleUploadSessionsTable.$inferSelec
     id: row.id,
     objectKey: row.objectKey,
     fileName: row.fileName,
+    folderPath: row.folderPath,
     contentType: row.contentType,
     fileSize: row.fileSize,
     fileHash: row.fileHash,
@@ -75,6 +92,7 @@ function toMultipartUploadSession(row: typeof multipartUploadSessionsTable.$infe
     uploadId: row.uploadId,
     objectKey: row.objectKey,
     fileName: row.fileName,
+    folderPath: row.folderPath,
     contentType: row.contentType,
     fileSize: row.fileSize,
     fileHash: row.fileHash,
@@ -96,7 +114,24 @@ function toMultipartUploadedPart(row: typeof multipartUploadedPartsTable.$inferS
 }
 
 export async function findUploadedFileByHash(fileHash: string) {
-  const [row] = await db().select().from(uploadedFilesTable).where(eq(uploadedFilesTable.fileHash, fileHash)).limit(1)
+  const [row] = await db()
+    .select()
+    .from(uploadedFilesTable)
+    .where(eq(uploadedFilesTable.fileHash, fileHash))
+    .orderBy(desc(uploadedFilesTable.createdAt))
+    .limit(1)
+
+  return row ? toUploadedFileRecord(row) : null
+}
+
+export async function findUploadedFileByPathAndName(folderPath: string, fileName: string) {
+  const normalizedPath = normalizeFolderPath(folderPath)
+  const [row] = await db()
+    .select()
+    .from(uploadedFilesTable)
+    .where(and(eq(uploadedFilesTable.folderPath, normalizedPath), eq(uploadedFilesTable.fileName, fileName)))
+    .limit(1)
+
   return row ? toUploadedFileRecord(row) : null
 }
 
@@ -110,9 +145,106 @@ export async function findUploadedFileBySampleHash(fileSampleHash: string, fileS
   return row ? toUploadedFileRecord(row) : null
 }
 
-export async function listUploadedFiles() {
+export async function listUploadedFiles(folderPath?: string) {
+  if (typeof folderPath === 'string') {
+    const normalizedPath = normalizeFolderPath(folderPath)
+    const rows = await db()
+      .select()
+      .from(uploadedFilesTable)
+      .where(eq(uploadedFilesTable.folderPath, normalizedPath))
+      .orderBy(asc(uploadedFilesTable.fileName))
+    return rows.map(toUploadedFileRecord)
+  }
+
   const rows = await db().select().from(uploadedFilesTable).orderBy(desc(uploadedFilesTable.createdAt))
   return rows.map(toUploadedFileRecord)
+}
+
+export async function listUploadFoldersByParentPath(parentPath: string) {
+  const normalizedParentPath = normalizeFolderPath(parentPath)
+  const rows = await db()
+    .select()
+    .from(uploadFoldersTable)
+    .where(eq(uploadFoldersTable.parentPath, normalizedParentPath))
+    .orderBy(asc(uploadFoldersTable.folderName))
+
+  return rows.map(toUploadFolderRecord)
+}
+
+export async function getUploadFolderByPath(folderPath: string) {
+  const normalizedPath = normalizeFolderPath(folderPath)
+  if (!normalizedPath) {
+    return null
+  }
+
+  const [row] = await db()
+    .select()
+    .from(uploadFoldersTable)
+    .where(eq(uploadFoldersTable.folderPath, normalizedPath))
+    .limit(1)
+  return row ? toUploadFolderRecord(row) : null
+}
+
+export async function createUploadFolder(input: { folderName: string; folderPath: string; parentPath: string }) {
+  const normalizedPath = normalizeFolderPath(input.folderPath)
+  const normalizedParentPath = normalizeFolderPath(input.parentPath)
+
+  const [inserted] = await db()
+    .insert(uploadFoldersTable)
+    .values({
+      id: randomUUID(),
+      folderName: input.folderName,
+      folderPath: normalizedPath,
+      parentPath: normalizedParentPath
+    })
+    .onConflictDoNothing({
+      target: uploadFoldersTable.folderPath
+    })
+    .returning()
+
+  if (inserted) {
+    return {
+      folder: toUploadFolderRecord(inserted),
+      created: true
+    }
+  }
+
+  const existing = await getUploadFolderByPath(normalizedPath)
+  if (!existing) {
+    throw new Error('Failed to create folder')
+  }
+
+  return {
+    folder: existing,
+    created: false
+  }
+}
+
+export async function ensureUploadFolderPathExists(folderPath: string) {
+  const normalizedPath = normalizeFolderPath(folderPath)
+  if (!normalizedPath) {
+    return
+  }
+
+  const segments = normalizedPath.split('/')
+  let currentPath = ''
+
+  for (const folderName of segments) {
+    const parentPath = currentPath
+    currentPath = currentPath ? `${currentPath}/${folderName}` : folderName
+
+    await db()
+      .insert(uploadFoldersTable)
+      .values({
+        id: randomUUID(),
+        folderName,
+        folderPath: currentPath,
+        parentPath
+      })
+      .onConflictDoNothing({
+        target: uploadFoldersTable.folderPath
+      })
+  }
 }
 
 export async function getUploadedFileById(id: string) {
@@ -131,15 +263,6 @@ export async function syncUploadedFileHash(fileId: string, fileHash: string) {
       updated: false,
       file: currentFile,
       conflictFile: null
-    }
-  }
-
-  const conflictFile = await findUploadedFileByHash(fileHash)
-  if (conflictFile && conflictFile.id !== fileId) {
-    return {
-      updated: false,
-      file: currentFile,
-      conflictFile
     }
   }
 
@@ -162,8 +285,67 @@ export async function syncUploadedFileHash(fileId: string, fileHash: string) {
   }
 }
 
+export async function createInstantUploadedFileAlias(input: {
+  sourceFile: UploadedFileRecord
+  fileName: string
+  folderPath: string
+  contentType: string
+}) {
+  const normalizedFolderPath = normalizeFolderPath(input.folderPath)
+  const existingAtTarget = await findUploadedFileByPathAndName(normalizedFolderPath, input.fileName)
+  if (existingAtTarget) {
+    if (existingAtTarget.fileHash === input.sourceFile.fileHash) {
+      return {
+        file: existingAtTarget,
+        created: false
+      }
+    }
+
+    throw new Error('A file with the same name already exists in this folder')
+  }
+
+  await ensureUploadFolderPathExists(normalizedFolderPath)
+
+  const [inserted] = await db()
+    .insert(uploadedFilesTable)
+    .values({
+      id: randomUUID(),
+      fileName: input.fileName,
+      folderPath: normalizedFolderPath,
+      contentType: input.contentType || input.sourceFile.contentType,
+      fileSize: input.sourceFile.fileSize,
+      fileHash: input.sourceFile.fileHash,
+      fileSampleHash: input.sourceFile.fileSampleHash,
+      objectKey: input.sourceFile.objectKey,
+      bucket: input.sourceFile.bucket,
+      strategy: 'instant'
+    })
+    .onConflictDoNothing({
+      target: [uploadedFilesTable.folderPath, uploadedFilesTable.fileName]
+    })
+    .returning()
+
+  if (inserted) {
+    return {
+      file: toUploadedFileRecord(inserted),
+      created: true
+    }
+  }
+
+  const conflict = await findUploadedFileByPathAndName(normalizedFolderPath, input.fileName)
+  if (conflict && conflict.fileHash === input.sourceFile.fileHash) {
+    return {
+      file: conflict,
+      created: false
+    }
+  }
+
+  throw new Error('A file with the same name already exists in this folder')
+}
+
 export async function registerUploadedFile(input: {
   fileName: string
+  folderPath: string
   contentType: string
   fileSize: number
   fileHash: string
@@ -172,20 +354,27 @@ export async function registerUploadedFile(input: {
   bucket: string
   strategy: UploadStrategy
 }) {
-  // 全量 hash 一致时直接复用，避免重复登记同一文件。
-  const existing = await findUploadedFileByHash(input.fileHash)
-  if (existing) {
-    return {
-      file: existing,
-      isInstantUpload: true
+  const normalizedFolderPath = normalizeFolderPath(input.folderPath)
+  const existingAtTarget = await findUploadedFileByPathAndName(normalizedFolderPath, input.fileName)
+  if (existingAtTarget) {
+    if (existingAtTarget.fileHash === input.fileHash) {
+      return {
+        file: existingAtTarget,
+        isInstantUpload: true
+      }
     }
+
+    throw new Error('A file with the same name already exists in this folder')
   }
+
+  await ensureUploadFolderPathExists(normalizedFolderPath)
 
   const [inserted] = await db()
     .insert(uploadedFilesTable)
     .values({
       id: randomUUID(),
       fileName: input.fileName,
+      folderPath: normalizedFolderPath,
       contentType: input.contentType,
       fileSize: input.fileSize,
       fileHash: input.fileHash,
@@ -195,7 +384,7 @@ export async function registerUploadedFile(input: {
       strategy: input.strategy
     })
     .onConflictDoNothing({
-      target: uploadedFilesTable.fileHash
+      target: [uploadedFilesTable.folderPath, uploadedFilesTable.fileName]
     })
     .returning()
 
@@ -206,20 +395,25 @@ export async function registerUploadedFile(input: {
     }
   }
 
-  const conflictFile = await findUploadedFileByHash(input.fileHash)
+  const conflictFile = await findUploadedFileByPathAndName(normalizedFolderPath, input.fileName)
   if (!conflictFile) {
     throw new Error('Failed to register uploaded file')
   }
 
-  return {
-    file: conflictFile,
-    isInstantUpload: true
+  if (conflictFile.fileHash === input.fileHash) {
+    return {
+      file: conflictFile,
+      isInstantUpload: true
+    }
   }
+
+  throw new Error('A file with the same name already exists in this folder')
 }
 
 export async function createSingleUploadSession(input: {
   objectKey: string
   fileName: string
+  folderPath: string
   contentType: string
   fileSize: number
   fileHash?: string | null
@@ -231,6 +425,7 @@ export async function createSingleUploadSession(input: {
       id: randomUUID(),
       objectKey: input.objectKey,
       fileName: input.fileName,
+      folderPath: normalizeFolderPath(input.folderPath),
       contentType: input.contentType,
       fileSize: input.fileSize,
       fileHash: input.fileHash ?? null,
@@ -264,14 +459,20 @@ export async function completeSingleUploadSession(sessionId: string) {
   return row ? toSingleUploadSession(row) : null
 }
 
-export async function findActiveMultipartSessionByFingerprint(fingerprintHash: string, fileSize: number) {
+export async function findActiveMultipartSessionByFingerprint(
+  fingerprintHash: string,
+  fileSize: number,
+  folderPath: string
+) {
+  const normalizedFolderPath = normalizeFolderPath(folderPath)
   const [row] = await db()
     .select()
     .from(multipartUploadSessionsTable)
     .where(
       and(
         eq(multipartUploadSessionsTable.fingerprintHash, fingerprintHash),
-        eq(multipartUploadSessionsTable.fileSize, fileSize)
+        eq(multipartUploadSessionsTable.fileSize, fileSize),
+        eq(multipartUploadSessionsTable.folderPath, normalizedFolderPath)
       )
     )
     .limit(1)
@@ -283,6 +484,7 @@ export async function createMultipartUploadSession(input: {
   uploadId: string
   objectKey: string
   fileName: string
+  folderPath: string
   contentType: string
   fileSize: number
   fileHash?: string | null
@@ -292,6 +494,7 @@ export async function createMultipartUploadSession(input: {
   totalParts: number
 }) {
   const now = new Date()
+  const normalizedFolderPath = normalizeFolderPath(input.folderPath)
   const [inserted] = await db()
     .insert(multipartUploadSessionsTable)
     .values({
@@ -299,6 +502,7 @@ export async function createMultipartUploadSession(input: {
       uploadId: input.uploadId,
       objectKey: input.objectKey,
       fileName: input.fileName,
+      folderPath: normalizedFolderPath,
       contentType: input.contentType,
       fileSize: input.fileSize,
       fileHash: input.fileHash ?? null,
@@ -310,7 +514,11 @@ export async function createMultipartUploadSession(input: {
       updatedAt: now
     })
     .onConflictDoNothing({
-      target: [multipartUploadSessionsTable.fingerprintHash, multipartUploadSessionsTable.fileSize]
+      target: [
+        multipartUploadSessionsTable.fingerprintHash,
+        multipartUploadSessionsTable.fileSize,
+        multipartUploadSessionsTable.folderPath
+      ]
     })
     .returning()
 
@@ -318,7 +526,11 @@ export async function createMultipartUploadSession(input: {
     return toMultipartUploadSession(inserted)
   }
 
-  const reused = await findActiveMultipartSessionByFingerprint(input.fingerprintHash, input.fileSize)
+  const reused = await findActiveMultipartSessionByFingerprint(
+    input.fingerprintHash,
+    input.fileSize,
+    normalizedFolderPath
+  )
   if (!reused) {
     throw new Error('Failed to create multipart upload session')
   }

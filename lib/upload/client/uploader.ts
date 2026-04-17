@@ -11,6 +11,7 @@ import {
 import { hashFileSampleSHA256, hashFileSHA256 } from '@/lib/upload/client/hash'
 import { clearResumeSessionId, getResumeSessionId, setResumeSessionId } from '@/lib/upload/client/resume-storage'
 import { uploadBlobWithProgress } from '@/lib/upload/client/transport'
+import { normalizeFolderPath } from '@/lib/upload/path'
 import {
   DEFAULT_MULTIPART_CHUNK_SIZE,
   DEFAULT_MULTIPART_THRESHOLD,
@@ -35,6 +36,7 @@ interface UploadCallbacks {
 
 interface UploadFileInput extends UploadCallbacks {
   file: File
+  folderPath?: string
   signal?: AbortSignal
   multipartThreshold?: number
   chunkSize?: number
@@ -57,13 +59,13 @@ export interface UploadFileResult {
   instantUpload: boolean
 }
 
-function isAbortError(error: unknown) {
-  return error instanceof DOMException && error.name === 'AbortError'
+function createAbortError() {
+  return new DOMException('Upload aborted', 'AbortError')
 }
 
 function raiseIfAborted(signal?: AbortSignal) {
   if (signal?.aborted) {
-    throw new DOMException('Upload aborted', 'AbortError')
+    throw createAbortError()
   }
 }
 
@@ -77,6 +79,10 @@ function clampPercent(value: number) {
 
 function isPendingFileHash(fileHash: string) {
   return fileHash.startsWith(PENDING_FILE_HASH_PREFIX)
+}
+
+function resolveTargetFolderPath(input: UploadFileInput) {
+  return normalizeFolderPath(input.folderPath ?? '')
 }
 
 async function runWithConcurrency<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>) {
@@ -147,11 +153,11 @@ function formatUploadSpeed(bytesPerSecond: number) {
   return `${mbPerSecond.toFixed(mbPerSecond >= 100 ? 0 : mbPerSecond >= 10 ? 1 : 2)} MB/s`
 }
 
-function clearResumeSessionKeys(hashContext: UploadHashContext, fileSize: number) {
-  clearResumeSessionId(hashContext.fileSampleHash, fileSize)
-  clearResumeSessionId(hashContext.resumeFingerprint, fileSize)
+function clearResumeSessionKeys(hashContext: UploadHashContext, fileSize: number, folderPath: string) {
+  clearResumeSessionId(hashContext.fileSampleHash, fileSize, folderPath)
+  clearResumeSessionId(hashContext.resumeFingerprint, fileSize, folderPath)
   if (hashContext.fileHash) {
-    clearResumeSessionId(hashContext.fileHash, fileSize)
+    clearResumeSessionId(hashContext.fileHash, fileSize, folderPath)
   }
 }
 
@@ -161,14 +167,14 @@ function syncUploadedFileHashInBackground(file: UploadedFileRecord, hashContext:
   }
 
   void hashContext.fullHashPromise
-    .then(fileHash => {
-      return syncUploadedFileHashRequest({
+    .then(fileHash =>
+      syncUploadedFileHashRequest({
         fileId: file.id,
         fileHash
       })
-    })
+    )
     .catch(() => {
-      // 后台回填失败不阻塞主流程，可由后续上传再次校验触发补偿。
+      // Non-blocking best-effort sync.
     })
 }
 
@@ -239,9 +245,11 @@ async function resolveFileHashForCompletion(input: UploadFileInput, hashContext:
 async function uploadSingleFile(
   input: UploadFileInput & { hashContext: UploadHashContext }
 ): Promise<UploadFileResult> {
+  const folderPath = resolveTargetFolderPath(input)
   input.onStageChange?.('checking', '准备单文件上传...')
   const singleInit = await initSingleUploadRequest({
     fileName: input.file.name,
+    folderPath,
     contentType: input.file.type || 'application/octet-stream',
     fileSize: input.file.size,
     fileSampleHash: input.hashContext.fileSampleHash,
@@ -250,7 +258,7 @@ async function uploadSingleFile(
 
   if (singleInit.instantUpload && singleInit.file) {
     emitProgress(input, input.file.size, input.file.size)
-    input.onStageChange?.('done', '秒传命中，已复用已有文件')
+    input.onStageChange?.('done', '秒传命中，复用已上传文件')
     return {
       file: singleInit.file,
       strategy: 'instant',
@@ -287,7 +295,7 @@ async function uploadSingleFile(
   syncUploadedFileHashInBackground(complete.file, input.hashContext)
   input.onStageChange?.(
     'done',
-    isPendingFileHash(complete.file.fileHash) ? '上传完成（全量校验后台进行中）' : '上传完成'
+    isPendingFileHash(complete.file.fileHash) ? '上传完成（后台正在同步全量哈希）' : '上传完成'
   )
 
   return {
@@ -300,18 +308,21 @@ async function uploadSingleFile(
 async function uploadMultipartFile(
   input: UploadFileInput & { hashContext: UploadHashContext }
 ): Promise<UploadFileResult> {
+  const folderPath = resolveTargetFolderPath(input)
   const chunkSize = Math.max(input.chunkSize ?? DEFAULT_MULTIPART_CHUNK_SIZE, 5 * 1024 * 1024)
   const baseConcurrency = Math.max(1, Math.min(input.multipartConcurrency ?? 3, 6))
-  // 后台全量校验和分片上传并行时，适当降低并发减少本地 IO 抢占。
   const concurrency =
     input.hashContext.fullHashPromise && !input.hashContext.fileHash
       ? Math.max(1, Math.min(baseConcurrency, 2))
       : baseConcurrency
-  const resumeSessionId = getResumeSessionId(input.hashContext.resumeFingerprint, input.file.size) ?? undefined
+
+  const resumeSessionId =
+    getResumeSessionId(input.hashContext.resumeFingerprint, input.file.size, folderPath) ?? undefined
 
   input.onStageChange?.('checking', resumeSessionId ? '检测到历史任务，准备断点续传' : '创建分片上传')
   const init = await initMultipartUploadRequest({
     fileName: input.file.name,
+    folderPath,
     contentType: input.file.type || 'application/octet-stream',
     fileSize: input.file.size,
     fileSampleHash: input.hashContext.fileSampleHash,
@@ -322,8 +333,8 @@ async function uploadMultipartFile(
 
   if (init.instantUpload && init.file) {
     emitProgress(input, input.file.size, input.file.size)
-    input.onStageChange?.('done', '秒传命中，已复用已有文件')
-    clearResumeSessionKeys(input.hashContext, input.file.size)
+    input.onStageChange?.('done', '秒传命中，复用已上传文件')
+    clearResumeSessionKeys(input.hashContext, input.file.size, folderPath)
     return {
       file: init.file,
       strategy: 'instant',
@@ -336,7 +347,7 @@ async function uploadMultipartFile(
     throw new Error('Missing multipart session')
   }
 
-  setResumeSessionId(input.hashContext.resumeFingerprint, input.file.size, session.sessionId)
+  setResumeSessionId(input.hashContext.resumeFingerprint, input.file.size, session.sessionId, folderPath)
 
   const completedPartSizes = new Map<number, number>()
   for (const part of session.uploadedParts) {
@@ -359,79 +370,72 @@ async function uploadMultipartFile(
   let speedWindowStartBytes = progress.current()
   let smoothedSpeedBytesPerSecond = 0
 
-  try {
-    await runWithConcurrency(pendingPartNumbers, concurrency, async partNumber => {
-      raiseIfAborted(input.signal)
-      const start = (partNumber - 1) * session.chunkSize
-      const end = Math.min(start + session.chunkSize, input.file.size)
-      const blob = input.file.slice(start, end)
-
-      const partUrl = await getMultipartPartUrlRequest(session.sessionId, partNumber)
-      const uploadResult = await uploadBlobWithProgress({
-        uploadUrl: partUrl.uploadUrl,
-        blob,
-        contentType: input.file.type || 'application/octet-stream',
-        signal: input.signal,
-        onProgress: loaded => {
-          inFlightLoaded.set(partNumber, loaded)
-          const transientBytes = Array.from(inFlightLoaded.values()).reduce((sum, size) => sum + size, 0)
-          const totalUploadedBytes = Math.min(input.file.size, committedLoaded + transientBytes)
-          const reportedUploadedBytes = progress.report(totalUploadedBytes)
-
-          const now = Date.now()
-          const elapsedMs = now - speedWindowStartAt
-          if (elapsedMs >= 450) {
-            const deltaBytes = Math.max(0, reportedUploadedBytes - speedWindowStartBytes)
-            const instantSpeed = (deltaBytes * 1000) / Math.max(1, elapsedMs)
-            smoothedSpeedBytesPerSecond =
-              smoothedSpeedBytesPerSecond <= 0 ? instantSpeed : smoothedSpeedBytesPerSecond * 0.7 + instantSpeed * 0.3
-
-            speedWindowStartAt = now
-            speedWindowStartBytes = reportedUploadedBytes
-            input.onStageChange?.('uploading', formatUploadSpeed(smoothedSpeedBytesPerSecond))
-          }
-        }
-      })
-
-      await reportMultipartPartCompletedRequest({
-        sessionId: session.sessionId,
-        partNumber,
-        size: blob.size,
-        eTag: uploadResult.eTag
-      })
-
-      committedLoaded += blob.size
-      inFlightLoaded.delete(partNumber)
-      progress.report(committedLoaded)
-    })
-
+  await runWithConcurrency(pendingPartNumbers, concurrency, async partNumber => {
     raiseIfAborted(input.signal)
-    const fileHash = await resolveFileHashForCompletion(input, input.hashContext)
 
-    input.onStageChange?.('finalizing', '合并分片并完成上传...')
-    const complete = await completeMultipartUploadRequest({
-      sessionId: session.sessionId,
-      fileHash
+    const start = (partNumber - 1) * session.chunkSize
+    const end = Math.min(start + session.chunkSize, input.file.size)
+    const blob = input.file.slice(start, end)
+
+    const partUrl = await getMultipartPartUrlRequest(session.sessionId, partNumber)
+    const uploadResult = await uploadBlobWithProgress({
+      uploadUrl: partUrl.uploadUrl,
+      blob,
+      contentType: input.file.type || 'application/octet-stream',
+      signal: input.signal,
+      onProgress: loaded => {
+        inFlightLoaded.set(partNumber, loaded)
+        const transientBytes = Array.from(inFlightLoaded.values()).reduce((sum, size) => sum + size, 0)
+        const totalUploadedBytes = Math.min(input.file.size, committedLoaded + transientBytes)
+        const reportedUploadedBytes = progress.report(totalUploadedBytes)
+
+        const now = Date.now()
+        const elapsedMs = now - speedWindowStartAt
+        if (elapsedMs >= 450) {
+          const deltaBytes = Math.max(0, reportedUploadedBytes - speedWindowStartBytes)
+          const instantSpeed = (deltaBytes * 1000) / Math.max(1, elapsedMs)
+          smoothedSpeedBytesPerSecond =
+            smoothedSpeedBytesPerSecond <= 0 ? instantSpeed : smoothedSpeedBytesPerSecond * 0.7 + instantSpeed * 0.3
+
+          speedWindowStartAt = now
+          speedWindowStartBytes = reportedUploadedBytes
+          input.onStageChange?.('uploading', formatUploadSpeed(smoothedSpeedBytesPerSecond))
+        }
+      }
     })
-    progress.force(input.file.size)
-    clearResumeSessionKeys(input.hashContext, input.file.size)
-    syncUploadedFileHashInBackground(complete.file, input.hashContext)
-    input.onStageChange?.(
-      'done',
-      isPendingFileHash(complete.file.fileHash) ? '上传完成（全量校验后台进行中）' : '上传完成'
-    )
 
-    return {
-      file: complete.file,
-      strategy: 'multipart',
-      instantUpload: false
-    }
-  } catch (error) {
-    if (isAbortError(error)) {
-      throw error
-    }
+    await reportMultipartPartCompletedRequest({
+      sessionId: session.sessionId,
+      partNumber,
+      size: blob.size,
+      eTag: uploadResult.eTag
+    })
 
-    throw error
+    committedLoaded += blob.size
+    inFlightLoaded.delete(partNumber)
+    progress.report(committedLoaded)
+  })
+
+  raiseIfAborted(input.signal)
+  const fileHash = await resolveFileHashForCompletion(input, input.hashContext)
+
+  input.onStageChange?.('finalizing', '合并分片并完成上传...')
+  const complete = await completeMultipartUploadRequest({
+    sessionId: session.sessionId,
+    fileHash
+  })
+  progress.force(input.file.size)
+  clearResumeSessionKeys(input.hashContext, input.file.size, folderPath)
+  syncUploadedFileHashInBackground(complete.file, input.hashContext)
+  input.onStageChange?.(
+    'done',
+    isPendingFileHash(complete.file.fileHash) ? '上传完成（后台正在同步全量哈希）' : '上传完成'
+  )
+
+  return {
+    file: complete.file,
+    strategy: 'multipart',
+    instantUpload: false
   }
 }
 
@@ -463,12 +467,12 @@ async function computeFullHashWithProgress(input: UploadFileInput, stagePrefix: 
 }
 
 async function computeSampleHashWithProgress(input: UploadFileInput) {
-  input.onStageChange?.('hashing', '开始指纹计算')
+  input.onStageChange?.('hashing', '开始计算采样哈希')
   return hashFileSampleSHA256(
     input.file,
     (loaded, total) => {
       const percent = (loaded / Math.max(1, total)) * 100
-      input.onStageChange?.('hashing', `指纹计算 ${percent.toFixed(1)}%`)
+      input.onStageChange?.('hashing', `采样哈希 ${percent.toFixed(1)}%`)
     },
     input.signal
   )
@@ -476,24 +480,28 @@ async function computeSampleHashWithProgress(input: UploadFileInput) {
 
 export async function uploadFile(input: UploadFileInput): Promise<UploadFileResult> {
   if (!input.file) {
-    throw new Error('No file selected')
+    throw new Error('未选择文件')
   }
 
+  const folderPath = resolveTargetFolderPath(input)
   raiseIfAborted(input.signal)
 
-  // 小文件直接全量 hash。
   if (input.file.size < SAMPLE_HASH_THRESHOLD) {
     const fileHash = await computeFullHashWithProgress(input, '文件校验中')
     raiseIfAborted(input.signal)
 
     input.onStageChange?.('checking', '检查是否可秒传...')
     const instantCheck = await instantCheckRequest({
-      fileHash
+      fileHash,
+      fileName: input.file.name,
+      contentType: input.file.type || 'application/octet-stream',
+      fileSize: input.file.size,
+      folderPath
     })
 
     if (instantCheck.instantUpload && instantCheck.file) {
       emitProgress(input, input.file.size, input.file.size)
-      input.onStageChange?.('done', '秒传命中，已复用已有文件')
+      input.onStageChange?.('done', '秒传命中，复用已上传文件')
       return {
         file: instantCheck.file,
         strategy: 'instant',
@@ -508,14 +516,16 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
     })
   }
 
-  // 大文件先做抽样 hash + size 预检。
   const fileSampleHash = await computeSampleHashWithProgress(input)
   raiseIfAborted(input.signal)
 
-  input.onStageChange?.('checking', '快速预检中...')
+  input.onStageChange?.('checking', '执行快速预检...')
   const sampleCheck = await instantCheckRequest({
     fileSampleHash,
-    fileSize: input.file.size
+    fileSize: input.file.size,
+    fileName: input.file.name,
+    contentType: input.file.type || 'application/octet-stream',
+    folderPath
   })
 
   if (sampleCheck.instantUpload && sampleCheck.file) {
@@ -528,14 +538,17 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
     }
   }
 
-  // POSSIBLE_HIT：先全量 hash，再精确判定是否秒传。
   if (sampleCheck.requiresFullHash) {
     const fileHash = await computeFullHashWithProgress(input, '候选命中，正在全量校验')
     raiseIfAborted(input.signal)
 
     input.onStageChange?.('checking', '校验秒传结果...')
     const exactCheck = await instantCheckRequest({
-      fileHash
+      fileHash,
+      fileName: input.file.name,
+      contentType: input.file.type || 'application/octet-stream',
+      fileSize: input.file.size,
+      folderPath
     })
 
     if (exactCheck.instantUpload && exactCheck.file) {
@@ -555,7 +568,6 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
     })
   }
 
-  // MISS：直接上传，不阻塞等待全量 hash。全量 hash 在后台完成后再回填。
   input.onStageChange?.('checking', '快速预检未命中，开始上传...')
   let backgroundHashProgress = 0
   let resolvedBackgroundHash: string | undefined
@@ -572,7 +584,7 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
   })
 
   void fullHashPromise.catch(() => {
-    // 后台校验失败不影响主上传完成。
+    // Non-blocking best-effort hashing.
   })
 
   return uploadBySize(input, {

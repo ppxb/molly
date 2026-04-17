@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react'
 import { CircleOffIcon, PauseIcon, PlayIcon, XIcon } from 'lucide-react'
 
 import { IconActionButton } from '@/components/icon-action-button'
+import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatBytes, getTaskStatusText } from '@/lib/utils'
-import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
 
 interface TaskItemProps {
   task: UploadQueueTask
@@ -22,6 +22,7 @@ function TaskItem({ task, onCancel, onPause, onContinue }: TaskItemProps) {
   const shouldPause = task.status === 'running' || task.status === 'queued'
   const canToggle = shouldPause || task.status === 'paused' || task.status === 'error'
   const showProgress = task.status !== 'queued'
+  const folderLabel = task.folderPath ? `/${task.folderPath}` : '/'
 
   return (
     <div className="border border-dashed border-foreground/12 p-3 hover:bg-foreground/2">
@@ -48,6 +49,8 @@ function TaskItem({ task, onCancel, onPause, onContinue }: TaskItemProps) {
           />
         </div>
       </div>
+
+      <div className="mb-1 truncate text-[11px] text-muted-foreground">目标目录：{folderLabel}</div>
 
       <div className="flex items-center justify-between gap-2 font-mono text-xs text-muted-foreground">
         <span>
@@ -93,7 +96,9 @@ export function UploadFloatingPanel({
   const shouldPauseAll = hasActiveTasks
 
   useEffect(() => {
-    if (canClose) setCollapsed(false)
+    if (canClose) {
+      setCollapsed(false)
+    }
   }, [canClose])
 
   const sortedTasks = tasks.toSorted((a, b) => a.createdAt - b.createdAt)
@@ -112,13 +117,13 @@ export function UploadFloatingPanel({
 
             <div className="flex items-center gap-1" onClick={event => event.stopPropagation()}>
               <IconActionButton
-                label="取消全部任务"
+                label="取消全部"
                 onClick={onCancelAll}
                 disabled={canClose}
                 icon={<CircleOffIcon className="size-4" />}
               />
               <IconActionButton
-                label={shouldPauseAll ? '暂停全部任务' : '继续全部任务'}
+                label={shouldPauseAll ? '暂停全部' : '继续全部'}
                 onClick={shouldPauseAll ? onPauseAll : onContinueAll}
                 disabled={canClose}
                 icon={shouldPauseAll ? <PauseIcon className="size-4" /> : <PlayIcon className="size-4" />}

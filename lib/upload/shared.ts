@@ -16,9 +16,11 @@ export type UploadStage = 'idle' | 'hashing' | 'checking' | 'uploading' | 'final
 export interface UploadedFileRecord {
   id: string
   fileName: string
+  folderPath: string
   contentType: string
   fileSize: number
   fileHash: string
+  fileSampleHash: string
   objectKey: string
   bucket: string
   strategy: UploadStrategy
@@ -29,6 +31,14 @@ export interface MultipartUploadedPart {
   partNumber: number
   eTag: string
   size: number
+}
+
+export interface UploadFolderRecord {
+  id: string
+  folderName: string
+  folderPath: string
+  parentPath: string
+  createdAt: string
 }
 
 export interface InstantCheckResponse {
@@ -87,4 +97,15 @@ export interface FileAccessUrlResponse {
   url: string
   disposition: 'inline' | 'attachment'
   expiresInSeconds: number
+}
+
+export interface UploadEntriesResponse {
+  path: string
+  parentPath: string | null
+  folders: UploadFolderRecord[]
+  files: UploadedFileRecord[]
+}
+
+export interface UploadFolderCreateResponse {
+  folder: UploadFolderRecord
 }

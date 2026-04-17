@@ -5,6 +5,7 @@ export const uploadedFilesTable = pgTable(
   {
     id: text('id').primaryKey(),
     fileName: text('file_name').notNull(),
+    folderPath: text('folder_path').notNull().default(''),
     contentType: text('content_type').notNull(),
     fileSize: bigint('file_size', { mode: 'number' }).notNull(),
     fileHash: text('file_hash').notNull(),
@@ -15,9 +16,28 @@ export const uploadedFilesTable = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow()
   },
   table => [
-    uniqueIndex('uploaded_files_file_hash_unique').on(table.fileHash),
+    index('uploaded_files_file_hash_idx').on(table.fileHash),
+    uniqueIndex('uploaded_files_folder_path_file_name_unique').on(table.folderPath, table.fileName),
+    index('uploaded_files_folder_path_file_name_idx').on(table.folderPath, table.fileName),
     index('uploaded_files_sample_hash_size_idx').on(table.fileSampleHash, table.fileSize),
     index('uploaded_files_created_at_idx').on(table.createdAt)
+  ]
+)
+
+export const uploadFoldersTable = pgTable(
+  'upload_folders',
+  {
+    id: text('id').primaryKey(),
+    folderName: text('folder_name').notNull(),
+    folderPath: text('folder_path').notNull(),
+    parentPath: text('parent_path').notNull().default(''),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow()
+  },
+  table => [
+    uniqueIndex('upload_folders_folder_path_unique').on(table.folderPath),
+    uniqueIndex('upload_folders_parent_path_name_unique').on(table.parentPath, table.folderName),
+    index('upload_folders_parent_path_idx').on(table.parentPath),
+    index('upload_folders_created_at_idx').on(table.createdAt)
   ]
 )
 
@@ -27,6 +47,7 @@ export const singleUploadSessionsTable = pgTable(
     id: text('id').primaryKey(),
     objectKey: text('object_key').notNull(),
     fileName: text('file_name').notNull(),
+    folderPath: text('folder_path').notNull().default(''),
     contentType: text('content_type').notNull(),
     fileSize: bigint('file_size', { mode: 'number' }).notNull(),
     fileHash: text('file_hash'),
@@ -43,6 +64,7 @@ export const multipartUploadSessionsTable = pgTable(
     uploadId: text('upload_id').notNull(),
     objectKey: text('object_key').notNull(),
     fileName: text('file_name').notNull(),
+    folderPath: text('folder_path').notNull().default(''),
     contentType: text('content_type').notNull(),
     fileSize: bigint('file_size', { mode: 'number' }).notNull(),
     fileHash: text('file_hash'),
@@ -54,7 +76,11 @@ export const multipartUploadSessionsTable = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow()
   },
   table => [
-    uniqueIndex('multipart_upload_sessions_fingerprint_unique').on(table.fingerprintHash, table.fileSize),
+    uniqueIndex('multipart_upload_sessions_fingerprint_unique').on(
+      table.fingerprintHash,
+      table.fileSize,
+      table.folderPath
+    ),
     index('multipart_upload_sessions_updated_at_idx').on(table.updatedAt)
   ]
 )

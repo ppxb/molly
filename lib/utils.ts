@@ -1,4 +1,4 @@
-import { UploadQueueTask } from '@/components/upload/upload-queue-types'
+import type { UploadQueueTask } from '@/components/upload/upload-queue-types'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
@@ -9,13 +9,14 @@ export function cn(...inputs: ClassValue[]) {
 export function formatBytes(bytes: number) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let unitIndex = 0
+  let size = Math.max(0, bytes)
 
-  while (bytes >= 1024 && unitIndex < units.length - 1) {
-    bytes /= 1024
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
     unitIndex += 1
   }
 
-  return `${unitIndex === 0 ? bytes : bytes.toFixed(2)} ${units[unitIndex]}`
+  return `${unitIndex === 0 ? size : size.toFixed(2)} ${units[unitIndex]}`
 }
 
 const STATUS_TEXT: Partial<Record<UploadQueueTask['status'], string>> = {

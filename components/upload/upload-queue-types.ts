@@ -8,6 +8,7 @@ export interface UploadQueueTask {
   fileName: string
   fileSize: number
   fileFingerprint: string
+  folderPath: string
   createdAt: number
   status: UploadQueueTaskStatus
   stage: UploadStage

@@ -1,17 +1,19 @@
 'use client'
 
-import { ArrowDownToLine, Eye, Loader2, RefreshCcw } from 'lucide-react'
+import { ArrowDownToLine, ChevronRight, Eye, FileIcon, FolderIcon, HomeIcon, Loader2, RefreshCcw } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatBytes } from '@/lib/utils'
-import type { UploadedFileRecord } from '@/lib/upload/shared'
+import type { UploadedFileRecord, UploadFolderRecord } from '@/lib/upload/shared'
 
 interface UploadedFilesOverviewProps {
+  currentPath: string
+  folders: UploadFolderRecord[]
   files: UploadedFileRecord[]
   isLoading: boolean
   onRefresh: () => void
+  onNavigate: (path: string) => void
   onOpenFile: (fileId: string, mode: 'preview' | 'download') => void
 }
 
@@ -19,64 +21,115 @@ function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString()
 }
 
-export function UploadedFilesOverview({ files, isLoading, onRefresh, onOpenFile }: UploadedFilesOverviewProps) {
+function buildPathItems(path: string) {
+  const segments = path.split('/').filter(Boolean)
+  const items: Array<{ label: string; path: string }> = [{ label: 'root', path: '' }]
+
+  let current = ''
+  for (const segment of segments) {
+    current = current ? `${current}/${segment}` : segment
+    items.push({
+      label: segment,
+      path: current
+    })
+  }
+
+  return items
+}
+
+export function UploadedFilesOverview({
+  currentPath,
+  folders,
+  files,
+  isLoading,
+  onRefresh,
+  onNavigate,
+  onOpenFile
+}: UploadedFilesOverviewProps) {
+  const pathItems = buildPathItems(currentPath)
+  const isEmpty = folders.length === 0 && files.length === 0
+
   return (
     <Card className="border-border/70">
       <CardHeader>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle>已上传文件总览</CardTitle>
-            <CardDescription>上传成功后会自动刷新，支持预览和下载。</CardDescription>
+            <CardTitle>File Explorer</CardTitle>
+            <CardDescription>Browse folders and files in the current workspace path.</CardDescription>
           </div>
           <Button variant="outline" onClick={onRefresh} disabled={isLoading}>
             {isLoading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCcw className="size-4" />}
-            刷新
+            Refresh
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
-        {files.length === 0 ? (
-          <div className="rounded-none border border-dashed p-8 text-center text-sm text-muted-foreground">
-            暂无已上传文件
+
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-center gap-1 rounded-none border bg-muted/30 p-2">
+          {pathItems.map((item, index) => {
+            const isRoot = item.path === ''
+            const isCurrent = item.path === currentPath
+            return (
+              <div key={item.path || 'root'} className="flex items-center gap-1">
+                {index > 0 ? <ChevronRight className="size-3.5 text-muted-foreground" /> : null}
+                <Button
+                  variant={isCurrent ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => onNavigate(item.path)}
+                >
+                  {isRoot ? <HomeIcon className="size-3.5" /> : null}
+                  {item.label}
+                </Button>
+              </div>
+            )
+          })}
+        </div>
+
+        {isEmpty ? (
+          <div className="rounded-none border border-dashed p-10 text-center text-sm text-muted-foreground">
+            This folder is empty.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="text-xs text-muted-foreground uppercase">
-                <tr className="border-b">
-                  <th className="py-2 pr-4 font-medium">文件名</th>
-                  <th className="py-2 pr-4 font-medium">大小</th>
-                  <th className="py-2 pr-4 font-medium">上传策略</th>
-                  <th className="py-2 pr-4 font-medium">上传时间</th>
-                  <th className="py-2 pr-4 font-medium">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {files.map(file => (
-                  <tr key={file.id} className="border-b last:border-b-0">
-                    <td className="max-w-65 py-2 pr-4">
-                      <p className="truncate font-medium">{file.fileName}</p>
-                      <p className="truncate text-xs text-muted-foreground">{file.fileHash.slice(0, 20)}...</p>
-                    </td>
-                    <td className="py-2 pr-4 text-muted-foreground">{formatBytes(file.fileSize)}</td>
-                    <td className="py-2 pr-4">
-                      <Badge variant={file.strategy === 'instant' ? 'success' : 'secondary'}>{file.strategy}</Badge>
-                    </td>
-                    <td className="py-2 pr-4 text-muted-foreground">{formatDateTime(file.createdAt)}</td>
-                    <td className="py-2 pr-4">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon-sm" onClick={() => onOpenFile(file.id, 'preview')}>
-                          <Eye className="size-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon-sm" onClick={() => onOpenFile(file.id, 'download')}>
-                          <ArrowDownToLine className="size-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {folders.map(folder => (
+              <button
+                type="button"
+                key={folder.id}
+                className="group flex flex-col gap-2 rounded-none border p-3 text-left transition hover:bg-muted/40"
+                onDoubleClick={() => onNavigate(folder.folderPath)}
+                onClick={() => onNavigate(folder.folderPath)}
+              >
+                <div className="flex items-center gap-2">
+                  <FolderIcon className="size-4 text-amber-500" />
+                  <p className="truncate text-sm font-medium">{folder.folderName}</p>
+                </div>
+                <p className="truncate text-xs text-muted-foreground">Open folder</p>
+              </button>
+            ))}
+
+            {files.map(file => (
+              <div key={file.id} className="flex flex-col gap-3 rounded-none border p-3">
+                <div className="flex items-center gap-2">
+                  <FileIcon className="size-4 text-muted-foreground" />
+                  <p className="truncate text-sm font-medium">{file.fileName}</p>
+                </div>
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <p>{formatBytes(file.fileSize)}</p>
+                  <p className="truncate">{formatDateTime(file.createdAt)}</p>
+                </div>
+                <div className="mt-auto flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => onOpenFile(file.id, 'preview')}>
+                    <Eye className="size-3.5" />
+                    Preview
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => onOpenFile(file.id, 'download')}>
+                    <ArrowDownToLine className="size-3.5" />
+                    Download
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>

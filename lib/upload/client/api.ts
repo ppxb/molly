@@ -6,6 +6,8 @@ import type {
   MultipartUploadInitResponse,
   SingleUploadCompleteResponse,
   SingleUploadInitResponse,
+  UploadEntriesResponse,
+  UploadFolderCreateResponse,
   UploadedFileRecord
 } from '@/lib/upload/shared'
 
@@ -45,7 +47,27 @@ export function listUploadedFilesRequest() {
   return request<UploadedFileRecord[]>('/api/uploads/files')
 }
 
-export function instantCheckRequest(input: { fileHash?: string; fileSampleHash?: string; fileSize?: number }) {
+export function listUploadEntriesRequest(path: string) {
+  const search = new URLSearchParams()
+  search.set('path', path)
+  return request<UploadEntriesResponse>(`/api/uploads/entries?${search.toString()}`)
+}
+
+export function createUploadFolderRequest(input: { parentPath: string; folderName: string }) {
+  return request<UploadFolderCreateResponse>('/api/uploads/folders', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  })
+}
+
+export function instantCheckRequest(input: {
+  fileHash?: string
+  fileSampleHash?: string
+  fileSize?: number
+  fileName?: string
+  contentType?: string
+  folderPath?: string
+}) {
   return request<InstantCheckResponse>('/api/uploads/instant-check', {
     method: 'POST',
     body: JSON.stringify(input)
@@ -54,6 +76,7 @@ export function instantCheckRequest(input: { fileHash?: string; fileSampleHash?:
 
 export function initSingleUploadRequest(input: {
   fileName: string
+  folderPath: string
   contentType: string
   fileSize: number
   fileSampleHash: string
@@ -74,6 +97,7 @@ export function completeSingleUploadRequest(input: { sessionId: string; fileHash
 
 export function initMultipartUploadRequest(input: {
   fileName: string
+  folderPath: string
   contentType: string
   fileSize: number
   fileSampleHash: string

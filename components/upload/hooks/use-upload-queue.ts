@@ -4,12 +4,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
 import { uploadFile } from '@/lib/upload/client/uploader'
+import { normalizeFolderPath } from '@/lib/upload/path'
 import { DEFAULT_MULTIPART_CHUNK_SIZE, DEFAULT_MULTIPART_THRESHOLD } from '@/lib/upload/shared'
 import type { UploadStage, UploadStrategy, UploadedFileRecord } from '@/lib/upload/shared'
 
 interface UseUploadQueueOptions {
   initialConcurrency?: number
   onTaskDone?: (file: UploadedFileRecord) => Promise<void> | void
+}
+
+interface AddFilesOptions {
+  targetFolderPath?: string
 }
 
 interface UpdateTaskPatch {
@@ -34,17 +39,19 @@ function clampPercent(value: number) {
   return Math.min(100, Math.max(0, value))
 }
 
-function createTaskFingerprint(file: File) {
-  return `${file.name}:${file.size}:${file.lastModified}`
+function createTaskFingerprint(file: File, folderPath: string) {
+  return `${folderPath}:${file.name}:${file.size}:${file.lastModified}`
 }
 
-function createTaskFromFile(file: File): UploadQueueTask {
+function createTaskFromFile(file: File, folderPath: string): UploadQueueTask {
+  const normalizedFolderPath = normalizeFolderPath(folderPath)
   return {
     id: crypto.randomUUID(),
     file,
     fileName: file.name,
     fileSize: file.size,
-    fileFingerprint: createTaskFingerprint(file),
+    fileFingerprint: createTaskFingerprint(file, normalizedFolderPath),
+    folderPath: normalizedFolderPath,
     createdAt: Date.now(),
     status: 'queued',
     stage: 'idle',
@@ -53,6 +60,21 @@ function createTaskFromFile(file: File): UploadQueueTask {
     totalBytes: file.size,
     percent: 0,
     strategy: 'pending',
+    instantUpload: false,
+    uploadedFile: null,
+    errorMessage: null
+  }
+}
+
+function buildQueuedTaskState(task: UploadQueueTask) {
+  return {
+    ...task,
+    status: 'queued' as const,
+    stage: 'idle' as const,
+    stageMessage: '等待上传',
+    loadedBytes: 0,
+    totalBytes: task.fileSize,
+    strategy: 'pending' as const,
     instantUpload: false,
     uploadedFile: null,
     errorMessage: null
@@ -127,6 +149,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
       try {
         const result = await uploadFile({
           file: task.file,
+          folderPath: task.folderPath,
           signal: controller.signal,
           multipartThreshold: DEFAULT_MULTIPART_THRESHOLD,
           chunkSize: DEFAULT_MULTIPART_CHUNK_SIZE,
@@ -178,7 +201,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         patchTask(taskId, {
           status: isAbort ? 'paused' : 'error',
           stage: isAbort ? 'idle' : 'error',
-          stageMessage: isAbort ? '已暂停' : error instanceof Error ? error.message : '上传失败，请稍后重试',
+          stageMessage: isAbort ? '已暂停' : error instanceof Error ? error.message : '上传失败',
           errorMessage: isAbort ? null : error instanceof Error ? error.message : '上传失败'
         })
       } finally {
@@ -225,16 +248,17 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
     }
   }, [isQueueActive, tasks])
 
-  const addFiles = useCallback((incomingFiles: File[] | FileList) => {
+  const addFiles = useCallback((incomingFiles: File[] | FileList, addOptions: AddFilesOptions = {}) => {
     const fileList = Array.isArray(incomingFiles) ? incomingFiles : Array.from(incomingFiles)
     if (fileList.length === 0) {
       return
     }
 
+    const targetFolderPath = normalizeFolderPath(addOptions.targetFolderPath ?? '')
     const existingFingerprints = new Set(tasksRef.current.map(task => task.fileFingerprint))
     const newTasks = fileList
       .filter(file => {
-        const fingerprint = createTaskFingerprint(file)
+        const fingerprint = createTaskFingerprint(file, targetFolderPath)
         if (existingFingerprints.has(fingerprint)) {
           return false
         }
@@ -242,14 +266,13 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         existingFingerprints.add(fingerprint)
         return true
       })
-      .map(file => createTaskFromFile(file))
+      .map(file => createTaskFromFile(file, targetFolderPath))
 
     if (newTasks.length === 0) {
       return
     }
 
     setTasks(previous => previous.concat(newTasks))
-    // 只启动新增 queued 任务，不会把 paused 任务改成 queued。
     setIsQueueActive(true)
   }, [])
 
@@ -260,17 +283,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         return
       }
 
-      patchTask(taskId, {
-        status: 'queued',
-        stage: 'idle',
-        stageMessage: '等待上传',
-        loadedBytes: 0,
-        totalBytes: task.fileSize,
-        strategy: 'pending',
-        instantUpload: false,
-        uploadedFile: null,
-        errorMessage: null
-      })
+      patchTask(taskId, buildQueuedTaskState(task))
       setIsQueueActive(true)
     },
     [getTaskById, patchTask]
@@ -323,26 +336,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
   )
 
   const continueAllTasks = useCallback(() => {
-    setTasks(previous =>
-      previous.map(task => {
-        if (task.status === 'done') {
-          return task
-        }
-
-        return {
-          ...task,
-          status: 'queued',
-          stage: 'idle',
-          stageMessage: '等待上传',
-          loadedBytes: 0,
-          totalBytes: task.fileSize,
-          strategy: 'pending',
-          instantUpload: false,
-          uploadedFile: null,
-          errorMessage: null
-        }
-      })
-    )
+    setTasks(previous => previous.map(task => (task.status === 'done' ? task : buildQueuedTaskState(task))))
     setIsQueueActive(true)
   }, [])
 
