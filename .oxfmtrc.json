@@ -6,9 +6,9 @@
   "trailingComma": "none",
   "singleQuote": true,
   "sortTailwindcss": {
-    "stylesheet": "./app/globals.css",
+    "stylesheet": "./src/styles/globals.css",
     "functions": ["clsx", "cn"],
     "preserveWhitespace": false
   },
-  "ignorePatterns": ["node_modules", "dist", ".next", "pnpm-lock.yaml", "*.md"]
+  "ignorePatterns": ["node_modules", "dist", "pnpm-lock.yaml"]
 }

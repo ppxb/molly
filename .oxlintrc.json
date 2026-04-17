@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc", "nextjs", "import"],
+  "plugins": ["typescript", "unicorn", "oxc", "import", "react"],
   "categories": {
     "correctness": "error"
   },
@@ -8,5 +8,5 @@
   "env": {
     "builtin": true
   },
-  "ignorePatterns": ["node_modules", "dist", ".next", ".turbo", "build", "pnpm-lock.yaml"]
+  "ignorePatterns": ["node_modules", "dist", "pnpm-lock.yaml"]
 }
