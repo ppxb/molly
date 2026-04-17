@@ -65,12 +65,12 @@ export function UploadDashboard() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
       <ThemeToggle />
+      <div className="pointer-events-none absolute top-1/2 left-1/2 h-[80vw] w-[80vw] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(circle,rgba(0,0,0,0.03)_0%,transparent_70%)] dark:bg-[radial-gradient(circle,rgba(255,255,255,0.05)_0%,transparent_70%)]"></div>
       <UploadedFilesOverview files={files} isLoading={isLoadingFiles} onRefresh={loadFiles} onOpenFile={openFileUrl} />
 
       <UploadFabMenu
         onSelectFiles={files => {
           queue.addFiles(files)
-          queue.continueAllTasks()
           setIsPanelVisible(true)
         }}
       />

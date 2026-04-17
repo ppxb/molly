@@ -1,11 +1,29 @@
+import {
+  SAMPLE_HASH_HEAD_SIZE,
+  SAMPLE_HASH_MIDDLE_PART_COUNT,
+  SAMPLE_HASH_MIDDLE_PART_SIZE,
+  SAMPLE_HASH_TAIL_SIZE,
+  SAMPLE_HASH_VERSION
+} from '@/lib/upload/shared'
+
 interface HashWorkerPrewarmMessage {
   type: 'prewarm'
+}
+
+export interface HashSamplingConfig {
+  headSize: number
+  tailSize: number
+  middlePartCount: number
+  middlePartSize: number
+  version: string
 }
 
 interface HashWorkerStartMessage {
   type: 'start'
   requestId: string
   file: File
+  mode?: 'full' | 'sample'
+  sampling?: HashSamplingConfig
 }
 
 interface HashWorkerProgressMessage {
@@ -69,6 +87,16 @@ function createRequestId() {
 
 function toError(error: unknown, fallbackMessage: string) {
   return error instanceof Error ? error : new Error(fallbackMessage)
+}
+
+function getDefaultSamplingConfig(): HashSamplingConfig {
+  return {
+    headSize: SAMPLE_HASH_HEAD_SIZE,
+    tailSize: SAMPLE_HASH_TAIL_SIZE,
+    middlePartCount: SAMPLE_HASH_MIDDLE_PART_COUNT,
+    middlePartSize: SAMPLE_HASH_MIDDLE_PART_SIZE,
+    version: SAMPLE_HASH_VERSION
+  }
 }
 
 async function prewarmWorker(worker: Worker) {
@@ -155,39 +183,15 @@ function acquireWorkerForHash() {
   }
 }
 
-export function prewarmHashWorker() {
-  return warmWorkerIfNeeded()
-}
-
-export function scheduleHashWorkerPrewarm() {
-  if (!supportsWorker() || hasScheduledIdlePrewarm) {
-    return
-  }
-
-  hasScheduledIdlePrewarm = true
-
-  const runPrewarm = () => {
-    void prewarmHashWorker().catch(() => {
-      hasScheduledIdlePrewarm = false
-    })
-  }
-
-  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-    window.requestIdleCallback(
-      () => {
-        runPrewarm()
-      },
-      {
-        timeout: 1500
-      }
-    )
-    return
-  }
-
-  setTimeout(runPrewarm, 800)
-}
-
-export function hashFileSHA256(file: File, onProgress?: (loaded: number, total: number) => void, signal?: AbortSignal) {
+function runHashInWorker(
+  input: {
+    file: File
+    mode: 'full' | 'sample'
+    sampling?: HashSamplingConfig
+  },
+  onProgress?: (loaded: number, total: number) => void,
+  signal?: AbortSignal
+) {
   if (signal?.aborted) {
     throw createAbortError()
   }
@@ -285,7 +289,9 @@ export function hashFileSHA256(file: File, onProgress?: (loaded: number, total: 
         const startMessage: HashWorkerStartMessage = {
           type: 'start',
           requestId,
-          file
+          file: input.file,
+          mode: input.mode,
+          sampling: input.sampling
         }
         worker.postMessage(startMessage)
       })
@@ -293,4 +299,67 @@ export function hashFileSHA256(file: File, onProgress?: (loaded: number, total: 
         finishWithError(toError(error, 'Failed to prewarm hash worker'))
       })
   })
+}
+
+export function prewarmHashWorker() {
+  return warmWorkerIfNeeded()
+}
+
+export function scheduleHashWorkerPrewarm() {
+  if (!supportsWorker() || hasScheduledIdlePrewarm) {
+    return
+  }
+
+  hasScheduledIdlePrewarm = true
+
+  const runPrewarm = () => {
+    void prewarmHashWorker().catch(() => {
+      hasScheduledIdlePrewarm = false
+    })
+  }
+
+  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+    window.requestIdleCallback(
+      () => {
+        runPrewarm()
+      },
+      {
+        timeout: 1500
+      }
+    )
+    return
+  }
+
+  setTimeout(runPrewarm, 800)
+}
+
+export function hashFileSHA256(file: File, onProgress?: (loaded: number, total: number) => void, signal?: AbortSignal) {
+  return runHashInWorker(
+    {
+      file,
+      mode: 'full'
+    },
+    onProgress,
+    signal
+  )
+}
+
+export function hashFileSampleSHA256(
+  file: File,
+  onProgress?: (loaded: number, total: number) => void,
+  signal?: AbortSignal,
+  sampling?: Partial<HashSamplingConfig>
+) {
+  return runHashInWorker(
+    {
+      file,
+      mode: 'sample',
+      sampling: {
+        ...getDefaultSamplingConfig(),
+        ...sampling
+      }
+    },
+    onProgress,
+    signal
+  )
 }

@@ -1,17 +1,35 @@
 /// <reference lib="webworker" />
 
+import {
+  SAMPLE_HASH_HEAD_SIZE,
+  SAMPLE_HASH_MIDDLE_PART_COUNT,
+  SAMPLE_HASH_MIDDLE_PART_SIZE,
+  SAMPLE_HASH_TAIL_SIZE,
+  SAMPLE_HASH_VERSION
+} from '@/lib/upload/shared'
+
 const STREAM_FALLBACK_CHUNK_SIZE = 8 * 1024 * 1024
-const HASH_PROCESS_CHUNK_SIZE = 2 * 1024 * 1024
-const PROGRESS_REPORT_INTERVAL_MS = 60
+const HASH_PROCESS_CHUNK_SIZE = 4 * 1024 * 1024
+const PROGRESS_REPORT_INTERVAL_MS = 120
 
 interface HashWorkerPrewarmMessage {
   type: 'prewarm'
+}
+
+interface HashSamplingConfig {
+  headSize: number
+  tailSize: number
+  middlePartCount: number
+  middlePartSize: number
+  version: string
 }
 
 interface HashWorkerStartMessage {
   type: 'start'
   requestId: string
   file: File
+  mode?: 'full' | 'sample'
+  sampling?: HashSamplingConfig
 }
 
 interface HashWorkerMessageBase {
@@ -62,7 +80,13 @@ interface HashProgressState {
   total: number
 }
 
+interface ByteRange {
+  start: number
+  end: number
+}
+
 const workerScope = self as unknown as DedicatedWorkerGlobalScope
+const textEncoder = new TextEncoder()
 let hashWasmModulePromise: Promise<HashWasmModule> | null = null
 
 function nowMs() {
@@ -125,13 +149,101 @@ async function hashBySlice(requestId: string, file: File, hasher: SHA256Hasher, 
   }
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function normalizeRanges(ranges: ByteRange[]) {
+  const sorted = ranges
+    .filter(range => range.end > range.start)
+    .sort((a, b) => {
+      if (a.start === b.start) {
+        return a.end - b.end
+      }
+      return a.start - b.start
+    })
+
+  if (sorted.length <= 1) {
+    return sorted
+  }
+
+  const merged: ByteRange[] = []
+  let current = sorted[0]
+
+  for (let index = 1; index < sorted.length; index += 1) {
+    const next = sorted[index]
+    if (next.start <= current.end) {
+      current = {
+        start: current.start,
+        end: Math.max(current.end, next.end)
+      }
+      continue
+    }
+
+    merged.push(current)
+    current = next
+  }
+
+  merged.push(current)
+  return merged
+}
+
+function buildSamplingRanges(fileSize: number, sampling: HashSamplingConfig) {
+  const ranges: ByteRange[] = []
+  const headEnd = Math.min(fileSize, Math.max(0, sampling.headSize))
+  if (headEnd > 0) {
+    ranges.push({
+      start: 0,
+      end: headEnd
+    })
+  }
+
+  const tailStart = Math.max(0, fileSize - Math.max(0, sampling.tailSize))
+  if (tailStart < fileSize) {
+    ranges.push({
+      start: tailStart,
+      end: fileSize
+    })
+  }
+
+  const middleStart = headEnd
+  const middleEnd = Math.max(middleStart, tailStart)
+  const availableMiddle = middleEnd - middleStart
+  const middlePartCount = Math.max(0, sampling.middlePartCount)
+  const middlePartSize = Math.max(0, Math.min(sampling.middlePartSize, availableMiddle))
+
+  if (availableMiddle > 0 && middlePartCount > 0 && middlePartSize > 0) {
+    const step = availableMiddle / (middlePartCount + 1)
+    for (let i = 1; i <= middlePartCount; i += 1) {
+      const center = middleStart + step * i
+      const start = clamp(Math.floor(center - middlePartSize / 2), middleStart, middleEnd - middlePartSize)
+      ranges.push({
+        start,
+        end: start + middlePartSize
+      })
+    }
+  }
+
+  return normalizeRanges(ranges)
+}
+
+function getDefaultSamplingConfig(): HashSamplingConfig {
+  return {
+    headSize: SAMPLE_HASH_HEAD_SIZE,
+    tailSize: SAMPLE_HASH_TAIL_SIZE,
+    middlePartCount: SAMPLE_HASH_MIDDLE_PART_COUNT,
+    middlePartSize: SAMPLE_HASH_MIDDLE_PART_SIZE,
+    version: SAMPLE_HASH_VERSION
+  }
+}
+
 async function hashFileSHA256InWorker(requestId: string, file: File) {
   const hasher = await createHasher()
   const state: HashProgressState = {
     loaded: 0,
     lastReportedLoaded: 0,
     nextReportAt: nowMs() + PROGRESS_REPORT_INTERVAL_MS,
-    total: file.size
+    total: Math.max(1, file.size)
   }
 
   if (typeof file.stream === 'function') {
@@ -154,6 +266,33 @@ async function hashFileSHA256InWorker(requestId: string, file: File) {
     }
   } else {
     await hashBySlice(requestId, file, hasher, state)
+  }
+
+  maybeReportProgress(requestId, state, true)
+  return hasher.digest()
+}
+
+async function hashFileSampleSHA256InWorker(requestId: string, file: File, sampling?: HashSamplingConfig) {
+  const hasher = await createHasher()
+  const resolvedSampling = sampling ?? getDefaultSamplingConfig()
+  const ranges = buildSamplingRanges(file.size, resolvedSampling)
+  const totalSampleBytes = ranges.reduce((sum, range) => sum + (range.end - range.start), 0)
+  const state: HashProgressState = {
+    loaded: 0,
+    lastReportedLoaded: 0,
+    nextReportAt: nowMs() + PROGRESS_REPORT_INTERVAL_MS,
+    total: Math.max(1, totalSampleBytes)
+  }
+
+  // 将算法版本、文件大小和采样布局一起纳入哈希输入，避免不同算法参数的结果互相冲突。
+  hasher.update(textEncoder.encode(`${resolvedSampling.version}|${file.size}|${ranges.length}|`))
+
+  for (const range of ranges) {
+    const length = range.end - range.start
+    hasher.update(textEncoder.encode(`${range.start}:${length}|`))
+
+    const buffer = await file.slice(range.start, range.end).arrayBuffer()
+    hashChunkIncrementally(requestId, hasher, new Uint8Array(buffer), state)
   }
 
   maybeReportProgress(requestId, state, true)
@@ -187,7 +326,12 @@ workerScope.onmessage = event => {
 
   void (async () => {
     try {
-      const hash = await hashFileSHA256InWorker(message.requestId, message.file)
+      const mode = message.mode ?? 'full'
+      const hash =
+        mode === 'sample'
+          ? await hashFileSampleSHA256InWorker(message.requestId, message.file, message.sampling)
+          : await hashFileSHA256InWorker(message.requestId, message.file)
+
       const doneMessage: HashWorkerDoneMessage = {
         type: 'done',
         requestId: message.requestId,

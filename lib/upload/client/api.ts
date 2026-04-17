@@ -45,7 +45,7 @@ export function listUploadedFilesRequest() {
   return request<UploadedFileRecord[]>('/api/uploads/files')
 }
 
-export function instantCheckRequest(input: { fileHash: string }) {
+export function instantCheckRequest(input: { fileHash?: string; fileSampleHash?: string; fileSize?: number }) {
   return request<InstantCheckResponse>('/api/uploads/instant-check', {
     method: 'POST',
     body: JSON.stringify(input)
@@ -56,7 +56,8 @@ export function initSingleUploadRequest(input: {
   fileName: string
   contentType: string
   fileSize: number
-  fileHash: string
+  fileSampleHash: string
+  fileHash?: string
 }) {
   return request<SingleUploadInitResponse>('/api/uploads/single/init', {
     method: 'POST',
@@ -64,7 +65,7 @@ export function initSingleUploadRequest(input: {
   })
 }
 
-export function completeSingleUploadRequest(input: { sessionId: string }) {
+export function completeSingleUploadRequest(input: { sessionId: string; fileHash?: string }) {
   return request<SingleUploadCompleteResponse>('/api/uploads/single/complete', {
     method: 'POST',
     body: JSON.stringify(input)
@@ -75,7 +76,8 @@ export function initMultipartUploadRequest(input: {
   fileName: string
   contentType: string
   fileSize: number
-  fileHash: string
+  fileSampleHash: string
+  fileHash?: string
   chunkSize: number
   resumeSessionId?: string
 }) {
@@ -117,9 +119,12 @@ export function reportMultipartPartCompletedRequest(input: {
   )
 }
 
-export function completeMultipartUploadRequest(sessionId: string) {
-  return request<SingleUploadCompleteResponse>(`/api/uploads/multipart/${sessionId}/complete`, {
-    method: 'POST'
+export function completeMultipartUploadRequest(input: { sessionId: string; fileHash?: string }) {
+  return request<SingleUploadCompleteResponse>(`/api/uploads/multipart/${input.sessionId}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({
+      fileHash: input.fileHash
+    })
   })
 }
 

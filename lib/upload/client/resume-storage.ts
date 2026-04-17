@@ -1,29 +1,29 @@
 const STORAGE_KEY_PREFIX = 'molly-upload-resume:'
 
-function buildStorageKey(fileHash: string, fileSize: number) {
-  return `${STORAGE_KEY_PREFIX}${fileHash}:${fileSize}`
+function buildStorageKey(fileFingerprint: string, fileSize: number) {
+  return `${STORAGE_KEY_PREFIX}${fileFingerprint}:${fileSize}`
 }
 
-export function getResumeSessionId(fileHash: string, fileSize: number) {
+export function getResumeSessionId(fileFingerprint: string, fileSize: number) {
   if (typeof window === 'undefined') {
     return null
   }
 
-  return window.localStorage.getItem(buildStorageKey(fileHash, fileSize))
+  return window.localStorage.getItem(buildStorageKey(fileFingerprint, fileSize))
 }
 
-export function setResumeSessionId(fileHash: string, fileSize: number, sessionId: string) {
+export function setResumeSessionId(fileFingerprint: string, fileSize: number, sessionId: string) {
   if (typeof window === 'undefined') {
     return
   }
 
-  window.localStorage.setItem(buildStorageKey(fileHash, fileSize), sessionId)
+  window.localStorage.setItem(buildStorageKey(fileFingerprint, fileSize), sessionId)
 }
 
-export function clearResumeSessionId(fileHash: string, fileSize: number) {
+export function clearResumeSessionId(fileFingerprint: string, fileSize: number) {
   if (typeof window === 'undefined') {
     return
   }
 
-  window.localStorage.removeItem(buildStorageKey(fileHash, fileSize))
+  window.localStorage.removeItem(buildStorageKey(fileFingerprint, fileSize))
 }

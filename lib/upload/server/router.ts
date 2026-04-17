@@ -2,15 +2,15 @@ import { Hono } from 'hono'
 
 import {
   DEFAULT_MULTIPART_CHUNK_SIZE,
-  FileAccessUrlResponse,
-  InstantCheckResponse,
+  type FileAccessUrlResponse,
+  type InstantCheckResponse,
   MAX_MULTIPART_PARTS,
-  MultipartPartUrlResponse,
-  MultipartStatusResponse,
-  MultipartUploadInitResponse,
+  type MultipartPartUrlResponse,
+  type MultipartStatusResponse,
+  type MultipartUploadInitResponse,
   MULTIPART_MIN_PART_SIZE,
-  SingleUploadCompleteResponse,
-  SingleUploadInitResponse
+  type SingleUploadCompleteResponse,
+  type SingleUploadInitResponse
 } from '@/lib/upload/shared'
 import { createObjectKey } from '@/lib/upload/server/object-key'
 import {
@@ -30,6 +30,7 @@ import {
   createSingleUploadSession,
   findActiveMultipartSessionByFingerprint,
   findUploadedFileByHash,
+  findUploadedFileBySampleHash,
   getMultipartUploadSession,
   getSingleUploadSession,
   getUploadedFileById,
@@ -87,7 +88,6 @@ function sumUploadedBytes(parts: Array<{ size: number }>) {
 
 export const uploadApi = new Hono().basePath('/api')
 
-// 健康检查接口：用于快速确认 Hono 路由是否挂载成功
 uploadApi.get('/hello', c => {
   return c.json(
     success({
@@ -96,11 +96,14 @@ uploadApi.get('/hello', c => {
   )
 })
 
-uploadApi.get('/uploads/files', c => {
-  return c.json(success(listUploadedFiles()))
+uploadApi.get('/uploads/files', async c => {
+  const files = await listUploadedFiles()
+  return c.json(success(files))
 })
 
-// 秒传检测：仅根据 hash 判断是否已有可复用对象（MVP 阶段未加租户维度）
+// 秒传预检：
+// 1) 提供 fileHash 时做精确匹配
+// 2) 仅提供 sampleHash + fileSize 时，只判断是否需要全量 hash
 uploadApi.post('/uploads/instant-check', async c => {
   const body = await c.req.json().catch(() => null)
   if (!body || typeof body !== 'object') {
@@ -108,24 +111,43 @@ uploadApi.post('/uploads/instant-check', async c => {
   }
 
   const fileHash = asNonEmptyString(body.fileHash)
-  if (!fileHash) {
-    return c.json(fail('fileHash is required'), 400)
+  const fileSampleHash = asNonEmptyString(body.fileSampleHash)
+  const fileSize = asPositiveNumber(body.fileSize)
+
+  if (fileHash) {
+    const existingFile = await findUploadedFileByHash(fileHash)
+    const data: InstantCheckResponse = existingFile
+      ? {
+          instantUpload: true,
+          requiresFullHash: false,
+          file: existingFile
+        }
+      : {
+          instantUpload: false,
+          requiresFullHash: false
+        }
+
+    return c.json(success(data))
   }
 
-  const existingFile = findUploadedFileByHash(fileHash)
-  const data: InstantCheckResponse = existingFile
+  if (!fileSampleHash || !fileSize) {
+    return c.json(fail('fileHash or (fileSampleHash and fileSize) is required'), 400)
+  }
+
+  const sampleMatched = await findUploadedFileBySampleHash(fileSampleHash, fileSize)
+  const data: InstantCheckResponse = sampleMatched
     ? {
-        instantUpload: true,
-        file: existingFile
+        instantUpload: false,
+        requiresFullHash: true
       }
     : {
-        instantUpload: false
+        instantUpload: false,
+        requiresFullHash: false
       }
 
   return c.json(success(data))
 })
 
-// 小文件上传初始化：返回单个 PUT 预签名 URL
 uploadApi.post('/uploads/single/init', async c => {
   const body = await c.req.json().catch(() => null)
   if (!body || typeof body !== 'object') {
@@ -136,19 +158,22 @@ uploadApi.post('/uploads/single/init', async c => {
   const contentType = asNonEmptyString(body.contentType) ?? 'application/octet-stream'
   const fileSize = asPositiveNumber(body.fileSize)
   const fileHash = asNonEmptyString(body.fileHash)
+  const fileSampleHash = asNonEmptyString(body.fileSampleHash) ?? fileHash
 
-  if (!fileName || !fileSize || !fileHash) {
-    return c.json(fail('fileName, fileSize and fileHash are required'), 400)
+  if (!fileName || !fileSize || !fileSampleHash) {
+    return c.json(fail('fileName, fileSize and fileSampleHash are required'), 400)
   }
 
-  const existingFile = findUploadedFileByHash(fileHash)
-  if (existingFile) {
-    const data: SingleUploadInitResponse = {
-      instantUpload: true,
-      file: existingFile
-    }
+  if (fileHash) {
+    const existingFile = await findUploadedFileByHash(fileHash)
+    if (existingFile) {
+      const data: SingleUploadInitResponse = {
+        instantUpload: true,
+        file: existingFile
+      }
 
-    return c.json(success(data))
+      return c.json(success(data))
+    }
   }
 
   const objectKey = createObjectKey(fileName)
@@ -157,12 +182,13 @@ uploadApi.post('/uploads/single/init', async c => {
     contentType
   })
 
-  const session = createSingleUploadSession({
+  const session = await createSingleUploadSession({
     objectKey,
     fileName,
     contentType,
     fileSize,
-    fileHash
+    fileHash,
+    fileSampleHash
   })
 
   const data: SingleUploadInitResponse = {
@@ -178,7 +204,6 @@ uploadApi.post('/uploads/single/init', async c => {
   return c.json(success(data))
 })
 
-// 小文件上传完成：后端校验对象确实存在后再落业务记录
 uploadApi.post('/uploads/single/complete', async c => {
   const body = await c.req.json().catch(() => null)
   if (!body || typeof body !== 'object') {
@@ -190,19 +215,25 @@ uploadApi.post('/uploads/single/complete', async c => {
     return c.json(fail('sessionId is required'), 400)
   }
 
-  const session = getSingleUploadSession(sessionId)
+  const session = await getSingleUploadSession(sessionId)
   if (!session) {
     return c.json(fail('Upload session does not exist'), 404)
   }
 
-  await assertObjectExists(session.objectKey)
-  completeSingleUploadSession(sessionId)
+  const resolvedFileHash = asNonEmptyString(body.fileHash) ?? session.fileHash
+  if (!resolvedFileHash) {
+    return c.json(fail('fileHash is required before completion'), 400)
+  }
 
-  const registered = registerUploadedFile({
+  await assertObjectExists(session.objectKey)
+  await completeSingleUploadSession(sessionId)
+
+  const registered = await registerUploadedFile({
     fileName: session.fileName,
     contentType: session.contentType,
     fileSize: session.fileSize,
-    fileHash: session.fileHash,
+    fileHash: resolvedFileHash,
+    fileSampleHash: session.fileSampleHash,
     objectKey: session.objectKey,
     bucket: getUploadBucket(),
     strategy: 'single'
@@ -215,7 +246,6 @@ uploadApi.post('/uploads/single/complete', async c => {
   return c.json(success(data))
 })
 
-// 分片上传初始化：支持续传（resumeSessionId）和自动命中同 hash 的活跃会话
 uploadApi.post('/uploads/multipart/init', async c => {
   const body = await c.req.json().catch(() => null)
   if (!body || typeof body !== 'object') {
@@ -226,21 +256,24 @@ uploadApi.post('/uploads/multipart/init', async c => {
   const contentType = asNonEmptyString(body.contentType) ?? 'application/octet-stream'
   const fileSize = asPositiveNumber(body.fileSize)
   const fileHash = asNonEmptyString(body.fileHash)
+  const fileSampleHash = asNonEmptyString(body.fileSampleHash) ?? fileHash
   const resumeSessionId = asNonEmptyString(body.resumeSessionId)
   const requestedChunkSize = asPositiveNumber(body.chunkSize)
 
-  if (!fileName || !fileSize || !fileHash) {
-    return c.json(fail('fileName, fileSize and fileHash are required'), 400)
+  if (!fileName || !fileSize || !fileSampleHash) {
+    return c.json(fail('fileName, fileSize and fileSampleHash are required'), 400)
   }
 
-  const existingFile = findUploadedFileByHash(fileHash)
-  if (existingFile) {
-    const data: MultipartUploadInitResponse = {
-      instantUpload: true,
-      file: existingFile
-    }
+  if (fileHash) {
+    const existingFile = await findUploadedFileByHash(fileHash)
+    if (existingFile) {
+      const data: MultipartUploadInitResponse = {
+        instantUpload: true,
+        file: existingFile
+      }
 
-    return c.json(success(data))
+      return c.json(success(data))
+    }
   }
 
   const chunkSize = Math.max(requestedChunkSize ?? DEFAULT_MULTIPART_CHUNK_SIZE, MULTIPART_MIN_PART_SIZE)
@@ -250,9 +283,10 @@ uploadApi.post('/uploads/multipart/init', async c => {
     return c.json(fail(`File is too large for multipart upload. Parts: ${totalParts}`), 400)
   }
 
-  let session = resumeSessionId ? getMultipartUploadSession(resumeSessionId) : null
+  const fingerprintHash = fileHash ?? fileSampleHash
+  let session = resumeSessionId ? await getMultipartUploadSession(resumeSessionId) : null
   if (!session) {
-    session = findActiveMultipartSessionByFingerprint(fileHash, fileSize)
+    session = await findActiveMultipartSessionByFingerprint(fingerprintHash, fileSize)
   }
 
   if (!session) {
@@ -262,19 +296,21 @@ uploadApi.post('/uploads/multipart/init', async c => {
       contentType
     })
 
-    session = createMultipartUploadSession({
+    session = await createMultipartUploadSession({
       uploadId,
       objectKey,
       fileName,
       contentType,
       fileSize,
       fileHash,
+      fileSampleHash,
+      fingerprintHash,
       chunkSize,
       totalParts
     })
   }
 
-  const uploadedParts = listMultipartUploadedParts(session.id) ?? []
+  const uploadedParts = (await listMultipartUploadedParts(session.id)) ?? []
 
   const data: MultipartUploadInitResponse = {
     instantUpload: false,
@@ -290,15 +326,14 @@ uploadApi.post('/uploads/multipart/init', async c => {
   return c.json(success(data))
 })
 
-// 查询分片状态：前端可据此恢复进度显示
-uploadApi.get('/uploads/multipart/:sessionId/status', c => {
+uploadApi.get('/uploads/multipart/:sessionId/status', async c => {
   const sessionId = c.req.param('sessionId')
-  const session = getMultipartUploadSession(sessionId)
+  const session = await getMultipartUploadSession(sessionId)
   if (!session) {
     return c.json(fail('Upload session does not exist'), 404)
   }
 
-  const uploadedParts = listMultipartUploadedParts(session.id) ?? []
+  const uploadedParts = (await listMultipartUploadedParts(session.id)) ?? []
   const uploadedBytes = sumUploadedBytes(uploadedParts)
 
   const data: MultipartStatusResponse = {
@@ -312,10 +347,9 @@ uploadApi.get('/uploads/multipart/:sessionId/status', c => {
   return c.json(success(data))
 })
 
-// 获取某个分片的 PUT 预签名 URL
 uploadApi.post('/uploads/multipart/:sessionId/part-url', async c => {
   const sessionId = c.req.param('sessionId')
-  const session = getMultipartUploadSession(sessionId)
+  const session = await getMultipartUploadSession(sessionId)
   if (!session) {
     return c.json(fail('Upload session does not exist'), 404)
   }
@@ -349,10 +383,9 @@ uploadApi.post('/uploads/multipart/:sessionId/part-url', async c => {
   return c.json(success(data))
 })
 
-// 前端分片上传完成后回调，登记 partNumber / size / eTag
 uploadApi.post('/uploads/multipart/:sessionId/part-complete', async c => {
   const sessionId = c.req.param('sessionId')
-  const session = getMultipartUploadSession(sessionId)
+  const session = await getMultipartUploadSession(sessionId)
   if (!session) {
     return c.json(fail('Upload session does not exist'), 404)
   }
@@ -370,13 +403,13 @@ uploadApi.post('/uploads/multipart/:sessionId/part-complete', async c => {
     return c.json(fail('partNumber and size are required'), 400)
   }
 
-  saveMultipartUploadedPart(session.id, {
+  await saveMultipartUploadedPart(session.id, {
     partNumber,
     size,
     eTag
   })
 
-  const uploadedParts = listMultipartUploadedParts(session.id) ?? []
+  const uploadedParts = (await listMultipartUploadedParts(session.id)) ?? []
   const uploadedBytes = sumUploadedBytes(uploadedParts)
 
   return c.json(
@@ -387,15 +420,20 @@ uploadApi.post('/uploads/multipart/:sessionId/part-complete', async c => {
   )
 })
 
-// 合并分片：会在必要时向对象存储回查 ETag，避免浏览器无法读取响应头导致合并失败
 uploadApi.post('/uploads/multipart/:sessionId/complete', async c => {
   const sessionId = c.req.param('sessionId')
-  const session = getMultipartUploadSession(sessionId)
+  const session = await getMultipartUploadSession(sessionId)
   if (!session) {
     return c.json(fail('Upload session does not exist'), 404)
   }
 
-  let uploadedParts = listMultipartUploadedParts(session.id) ?? []
+  const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null
+  const resolvedFileHash = (body ? asNonEmptyString(body.fileHash) : null) ?? session.fileHash
+  if (!resolvedFileHash) {
+    return c.json(fail('fileHash is required before completion'), 400)
+  }
+
+  let uploadedParts = (await listMultipartUploadedParts(session.id)) ?? []
   if (uploadedParts.length < session.totalParts) {
     return c.json(fail(`Not all parts uploaded. ${uploadedParts.length}/${session.totalParts}`), 400)
   }
@@ -428,13 +466,14 @@ uploadApi.post('/uploads/multipart/:sessionId/complete', async c => {
     }))
   })
 
-  removeMultipartUploadSession(session.id)
+  await removeMultipartUploadSession(session.id)
 
-  const registered = registerUploadedFile({
+  const registered = await registerUploadedFile({
     fileName: session.fileName,
     contentType: session.contentType,
     fileSize: session.fileSize,
-    fileHash: session.fileHash,
+    fileHash: resolvedFileHash,
+    fileSampleHash: session.fileSampleHash,
     objectKey: session.objectKey,
     bucket: getUploadBucket(),
     strategy: 'multipart'
@@ -447,10 +486,9 @@ uploadApi.post('/uploads/multipart/:sessionId/complete', async c => {
   )
 })
 
-// 终止分片会话：用于彻底放弃该上传任务
 uploadApi.post('/uploads/multipart/:sessionId/abort', async c => {
   const sessionId = c.req.param('sessionId')
-  const session = getMultipartUploadSession(sessionId)
+  const session = await getMultipartUploadSession(sessionId)
   if (!session) {
     return c.json(fail('Upload session does not exist'), 404)
   }
@@ -459,7 +497,7 @@ uploadApi.post('/uploads/multipart/:sessionId/abort', async c => {
     objectKey: session.objectKey,
     uploadId: session.uploadId
   })
-  removeMultipartUploadSession(session.id)
+  await removeMultipartUploadSession(session.id)
 
   return c.json(
     success({
@@ -468,11 +506,10 @@ uploadApi.post('/uploads/multipart/:sessionId/abort', async c => {
   )
 })
 
-// 下载/预览 URL：返回短时效预签名地址，避免暴露长期密钥
 uploadApi.get('/uploads/files/:fileId/url', async c => {
   const fileId = c.req.param('fileId')
   const mode = c.req.query('mode') === 'preview' ? 'inline' : 'attachment'
-  const file = getUploadedFileById(fileId)
+  const file = await getUploadedFileById(fileId)
 
   if (!file) {
     return c.json(fail('File does not exist'), 404)
