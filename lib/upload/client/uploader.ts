@@ -309,7 +309,7 @@ async function uploadMultipartFile(
       : baseConcurrency
   const resumeSessionId = getResumeSessionId(input.hashContext.resumeFingerprint, input.file.size) ?? undefined
 
-  input.onStageChange?.('checking', resumeSessionId ? '检测到历史任务，准备断点续传...' : '创建分片上传会话...')
+  input.onStageChange?.('checking', resumeSessionId ? '检测到历史任务，准备断点续传' : '创建分片上传')
   const init = await initMultipartUploadRequest({
     fileName: input.file.name,
     contentType: input.file.type || 'application/octet-stream',
@@ -463,12 +463,12 @@ async function computeFullHashWithProgress(input: UploadFileInput, stagePrefix: 
 }
 
 async function computeSampleHashWithProgress(input: UploadFileInput) {
-  input.onStageChange?.('hashing', '快速指纹计算中 0%')
+  input.onStageChange?.('hashing', '开始指纹计算')
   return hashFileSampleSHA256(
     input.file,
     (loaded, total) => {
       const percent = (loaded / Math.max(1, total)) * 100
-      input.onStageChange?.('hashing', `快速指纹计算中 ${percent.toFixed(1)}%`)
+      input.onStageChange?.('hashing', `指纹计算 ${percent.toFixed(1)}%`)
     },
     input.signal
   )
