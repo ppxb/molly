@@ -7,8 +7,7 @@ import { IconActionButton } from '@/components/icon-action-button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { formatBytes } from '@/lib/utils'
-import { getTaskStatusText } from '@/components/upload/upload-status'
+import { formatBytes, getTaskStatusText } from '@/lib/utils'
 import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
 
 interface TaskItemProps {
@@ -51,7 +50,9 @@ function TaskItem({ task, onCancel, onPause, onContinue }: TaskItemProps) {
       </div>
 
       <div className="flex items-center justify-between gap-2 font-mono text-xs text-muted-foreground">
-        <span>{task.totalBytes > 0 ? `${formatBytes(task.loadedBytes)} / ${formatBytes(task.totalBytes)}` : '-'}</span>
+        <span>
+          {formatBytes(task.loadedBytes)} / {formatBytes(task.totalBytes)}
+        </span>
         <div className="max-w-[60%] truncate">{getTaskStatusText(task)}</div>
       </div>
 
