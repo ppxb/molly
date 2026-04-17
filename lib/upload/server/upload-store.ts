@@ -120,6 +120,48 @@ export async function getUploadedFileById(id: string) {
   return row ? toUploadedFileRecord(row) : null
 }
 
+export async function syncUploadedFileHash(fileId: string, fileHash: string) {
+  const currentFile = await getUploadedFileById(fileId)
+  if (!currentFile) {
+    return null
+  }
+
+  if (currentFile.fileHash === fileHash) {
+    return {
+      updated: false,
+      file: currentFile,
+      conflictFile: null
+    }
+  }
+
+  const conflictFile = await findUploadedFileByHash(fileHash)
+  if (conflictFile && conflictFile.id !== fileId) {
+    return {
+      updated: false,
+      file: currentFile,
+      conflictFile
+    }
+  }
+
+  const [updatedRow] = await db()
+    .update(uploadedFilesTable)
+    .set({
+      fileHash
+    })
+    .where(eq(uploadedFilesTable.id, fileId))
+    .returning()
+
+  if (!updatedRow) {
+    return null
+  }
+
+  return {
+    updated: true,
+    file: toUploadedFileRecord(updatedRow),
+    conflictFile: null
+  }
+}
+
 export async function registerUploadedFile(input: {
   fileName: string
   contentType: string

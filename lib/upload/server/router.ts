@@ -38,7 +38,8 @@ import {
   listUploadedFiles,
   registerUploadedFile,
   removeMultipartUploadSession,
-  saveMultipartUploadedPart
+  saveMultipartUploadedPart,
+  syncUploadedFileHash
 } from '@/lib/upload/server/upload-store'
 
 type ApiEnvelope<T> = {
@@ -80,6 +81,10 @@ function asPositiveNumber(value: unknown) {
   }
 
   return Number.isFinite(value) && value > 0 ? value : null
+}
+
+function createPendingFileHash(sourceId: string) {
+  return `pending:${sourceId}`
 }
 
 function sumUploadedBytes(parts: Array<{ size: number }>) {
@@ -220,10 +225,7 @@ uploadApi.post('/uploads/single/complete', async c => {
     return c.json(fail('Upload session does not exist'), 404)
   }
 
-  const resolvedFileHash = asNonEmptyString(body.fileHash) ?? session.fileHash
-  if (!resolvedFileHash) {
-    return c.json(fail('fileHash is required before completion'), 400)
-  }
+  const resolvedFileHash = asNonEmptyString(body.fileHash) ?? session.fileHash ?? createPendingFileHash(session.id)
 
   await assertObjectExists(session.objectKey)
   await completeSingleUploadSession(sessionId)
@@ -428,10 +430,8 @@ uploadApi.post('/uploads/multipart/:sessionId/complete', async c => {
   }
 
   const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null
-  const resolvedFileHash = (body ? asNonEmptyString(body.fileHash) : null) ?? session.fileHash
-  if (!resolvedFileHash) {
-    return c.json(fail('fileHash is required before completion'), 400)
-  }
+  const resolvedFileHash =
+    (body ? asNonEmptyString(body.fileHash) : null) ?? session.fileHash ?? createPendingFileHash(session.id)
 
   let uploadedParts = (await listMultipartUploadedParts(session.id)) ?? []
   if (uploadedParts.length < session.totalParts) {
@@ -529,6 +529,32 @@ uploadApi.get('/uploads/files/:fileId/url', async c => {
   }
 
   return c.json(success(data))
+})
+
+uploadApi.post('/uploads/files/:fileId/hash-sync', async c => {
+  const fileId = c.req.param('fileId')
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') {
+    return c.json(fail('Invalid request body'), 400)
+  }
+
+  const fileHash = asNonEmptyString(body.fileHash)
+  if (!fileHash) {
+    return c.json(fail('fileHash is required'), 400)
+  }
+
+  const result = await syncUploadedFileHash(fileId, fileHash)
+  if (!result) {
+    return c.json(fail('File does not exist'), 404)
+  }
+
+  return c.json(
+    success({
+      updated: result.updated,
+      file: result.file,
+      conflictFile: result.conflictFile ?? undefined
+    })
+  )
 })
 
 uploadApi.onError((error, c) => {

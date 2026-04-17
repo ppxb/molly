@@ -138,3 +138,16 @@ export function getFileAccessUrlRequest(input: { fileId: string; mode: 'preview'
   const modeQuery = input.mode === 'preview' ? 'preview' : 'download'
   return request<FileAccessUrlResponse>(`/api/uploads/files/${input.fileId}/url?mode=${modeQuery}`)
 }
+
+export function syncUploadedFileHashRequest(input: { fileId: string; fileHash: string }) {
+  return request<{
+    updated: boolean
+    file: UploadedFileRecord
+    conflictFile?: UploadedFileRecord
+  }>(`/api/uploads/files/${input.fileId}/hash-sync`, {
+    method: 'POST',
+    body: JSON.stringify({
+      fileHash: input.fileHash
+    })
+  })
+}

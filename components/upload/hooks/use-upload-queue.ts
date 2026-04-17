@@ -231,30 +231,26 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
       return
     }
 
-    let addedCount = 0
-    setTasks(previous => {
-      const existingFingerprints = new Set(previous.map(task => task.fileFingerprint))
-      const newTasks = fileList
-        .filter(file => {
-          const fingerprint = createTaskFingerprint(file)
-          if (existingFingerprints.has(fingerprint)) {
-            return false
-          }
+    const existingFingerprints = new Set(tasksRef.current.map(task => task.fileFingerprint))
+    const newTasks = fileList
+      .filter(file => {
+        const fingerprint = createTaskFingerprint(file)
+        if (existingFingerprints.has(fingerprint)) {
+          return false
+        }
 
-          existingFingerprints.add(fingerprint)
-          return true
-        })
-        .map(file => createTaskFromFile(file))
+        existingFingerprints.add(fingerprint)
+        return true
+      })
+      .map(file => createTaskFromFile(file))
 
-      addedCount = newTasks.length
-
-      return previous.concat(newTasks)
-    })
-
-    if (addedCount > 0) {
-      // 新增文件默认进入上传队列，但不改变已暂停任务状态。
-      setIsQueueActive(true)
+    if (newTasks.length === 0) {
+      return
     }
+
+    setTasks(previous => previous.concat(newTasks))
+    // 只启动新增 queued 任务，不会把 paused 任务改成 queued。
+    setIsQueueActive(true)
   }, [])
 
   const continueTask = useCallback(
