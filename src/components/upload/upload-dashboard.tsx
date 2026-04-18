@@ -252,8 +252,6 @@ function UploadDashboardContent() {
 
           <TrashEntryDialog
             open={trashTarget !== null}
-            type={trashTarget?.type ?? 'file'}
-            name={trashTarget?.name ?? ''}
             isSubmitting={isTrashing}
             onOpenChange={onTrashDialogOpenChange}
             onConfirm={submitTrash}

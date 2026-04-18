@@ -11,41 +11,30 @@ import {
 
 interface TrashEntryDialogProps {
   open: boolean
-  type: 'file' | 'folder'
-  name: string
   isSubmitting?: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => Promise<void> | void
 }
 
-export function TrashEntryDialog({
-  open,
-  type,
-  name,
-  isSubmitting = false,
-  onOpenChange,
-  onConfirm
-}: TrashEntryDialogProps) {
-  const title = type === 'file' ? 'Move File to Recycle Bin' : 'Move Folder to Recycle Bin'
-
+export function TrashEntryDialog({ open, isSubmitting = false, onOpenChange, onConfirm }: TrashEntryDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle>放入回收站</DialogTitle>
           <DialogDescription>
-            {`"${name}" will be moved to recycle bin. You can restore it later before it expires.`}
+            10天内可在回收站中找回已删文件。放入回收站的文件仍占用云盘容量，请及时去回收站清理。
           </DialogDescription>
         </DialogHeader>
 
         <DialogFooter className="justify-end">
           <DialogClose asChild>
             <Button type="button" variant="outline" disabled={isSubmitting}>
-              Cancel
+              取消
             </Button>
           </DialogClose>
           <Button type="button" variant="destructive" disabled={isSubmitting} onClick={() => void onConfirm()}>
-            {isSubmitting ? 'Moving...' : 'Move to Recycle Bin'}
+            确认放入
           </Button>
         </DialogFooter>
       </DialogContent>

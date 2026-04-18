@@ -84,15 +84,15 @@ export function UploadedFilesOverview({
             <ContextMenuContent>
               <ContextMenuItem onSelect={() => onUploadFiles?.()}>
                 <FilePlusCornerIcon className="size-3.5" />
-                Upload Files
-              </ContextMenuItem>
-              <ContextMenuItem onSelect={onCreateFolder}>
-                <FolderPlusIcon className="size-3.5" />
-                New Folder
+                上传文件
               </ContextMenuItem>
               <ContextMenuItem disabled>
                 <FolderUpIcon className="size-3.5" />
-                Upload Folder (Coming Soon)
+                上传文件夹 (即将推出)
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={onCreateFolder}>
+                <FolderPlusIcon className="size-3.5" />
+                新建文件夹
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>

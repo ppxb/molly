@@ -32,11 +32,11 @@ export function useUploadRecycleBinActions(input: UseUploadRecycleBinActionsInpu
         await recycleBinRestoreRequest({
           file_id: target.id
         })
-        toast.success(target.type === 'file' ? 'File restored' : 'Folder restored')
+        toast.success(target.type === 'file' ? '文件已恢复' : '文件夹已恢复')
         void refresh()
       } catch (error) {
         rollback?.()
-        toast.error(getErrorMessage(error, 'Failed to restore item'))
+        toast.error(getErrorMessage(error, '恢复项目失败'))
       } finally {
         setIsRestoring(false)
       }
