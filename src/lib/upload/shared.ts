@@ -59,14 +59,6 @@ export interface UploadBreadcrumbItem {
   path: string
 }
 
-export interface UploadFileMoveResponse {
-  file: UploadedFileRecord
-}
-
-export interface UploadFolderMoveResponse {
-  folder: UploadFolderRecord
-}
-
 export interface UploadMoveTargetsResponse {
   folders: UploadFolderRecord[]
 }

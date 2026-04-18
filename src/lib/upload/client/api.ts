@@ -430,7 +430,7 @@ export function listUploadEntriesRequest(folderId: string) {
   })()
 }
 
-export function createUploadFolderRequest(input: { parentFolderId?: string; folderName: string }) {
+export function createFolderRequest(input: { parentFolderId?: string; folderName: string }) {
   return requestJSON<FileCreateWithFoldersResponse>('/v1/file/create_with_folders', {
     parent_file_id: input.parentFolderId || 'root',
     name: input.folderName,
@@ -439,7 +439,7 @@ export function createUploadFolderRequest(input: { parentFolderId?: string; fold
   })
 }
 
-export function listUploadMoveTargetsRequest(input?: { excludeFolderId?: string }) {
+export function listMoveTargetsRequest(input?: { excludeFolderId?: string }) {
   return requestJSON<UploadMoveTargetsResponse>('/v1/file/list_move_targets', {
     excludeFolderId: input?.excludeFolderId
   })
