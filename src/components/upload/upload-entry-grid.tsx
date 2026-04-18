@@ -1,6 +1,5 @@
 import {
   ArrowDownToLine,
-  Eye,
   FileArchiveIcon,
   FileAudioIcon,
   FileCodeIcon,
@@ -131,41 +130,38 @@ function FolderEntryCard({
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        {canOpen ? <ContextMenuItem onSelect={() => onNavigate?.(folder.id)}>Open</ContextMenuItem> : null}
-
-        {canRename || canMove ? (
+        {(canRename || canMove) && (
           <>
-            {canOpen ? <ContextMenuSeparator /> : null}
-            {canRename ? <ContextMenuItem onSelect={() => onRename?.(folder)}>Rename</ContextMenuItem> : null}
-            {canMove ? <ContextMenuItem onSelect={() => onMove?.(folder)}>Move To</ContextMenuItem> : null}
+            {canRename && <ContextMenuItem onSelect={() => onRename?.(folder)}>重命名</ContextMenuItem>}
+            {canMove && <ContextMenuItem onSelect={() => onMove?.(folder)}>移动</ContextMenuItem>}
           </>
-        ) : null}
+        )}
 
-        {canTrash ? (
+        {canTrash && (
           <>
-            {hasBaseActions ? <ContextMenuSeparator /> : null}
+            {hasBaseActions && <ContextMenuSeparator />}
             <ContextMenuItem variant="destructive" onSelect={() => onTrash?.(folder)}>
               <Trash2Icon className="size-3.5" />
-              Move to Recycle Bin
+              放入回收站
             </ContextMenuItem>
           </>
-        ) : null}
+        )}
 
-        {canRestore ? (
+        {canRestore && (
           <>
-            {hasBaseActions || hasTrashAction ? <ContextMenuSeparator /> : null}
-            <ContextMenuItem onSelect={() => onRestore?.(folder)}>Restore</ContextMenuItem>
+            {(hasBaseActions || hasTrashAction) && <ContextMenuSeparator />}
+            <ContextMenuItem onSelect={() => onRestore?.(folder)}>还原</ContextMenuItem>
           </>
-        ) : null}
+        )}
 
-        {canDeleteForever ? (
+        {canDeleteForever && (
           <>
-            {hasBaseActions || hasTrashAction || canRestore ? <ContextMenuSeparator /> : null}
+            {(hasBaseActions || hasTrashAction || canRestore) && <ContextMenuSeparator />}
             <ContextMenuItem variant="destructive" onSelect={() => onDeleteForever?.(folder)}>
-              Delete Forever
+              删除
             </ContextMenuItem>
           </>
-        ) : null}
+        )}
 
         {!hasAnyAction ? <ContextMenuItem disabled>No actions available</ContextMenuItem> : null}
       </ContextMenuContent>
@@ -206,7 +202,6 @@ function FileEntryCard({
         <button
           type="button"
           className="group flex h-40 flex-col items-center justify-center gap-3 border p-4 text-left transition hover:bg-muted/40"
-          onDoubleClick={() => onOpenFile?.(file.id, 'preview')}
         >
           {resolveFileIcon(file)}
           <NameWithTooltip value={file.fileName} />
@@ -216,50 +211,46 @@ function FileEntryCard({
       <ContextMenuContent>
         {canOpen ? (
           <>
-            <ContextMenuItem onSelect={() => onOpenFile?.(file.id, 'preview')}>
-              <Eye className="size-3.5" />
-              Preview
-            </ContextMenuItem>
             <ContextMenuItem onSelect={() => onOpenFile?.(file.id, 'download')}>
               <ArrowDownToLine className="size-3.5" />
-              Download
+              下载
             </ContextMenuItem>
           </>
         ) : null}
 
-        {canRename || canMove ? (
+        {(canRename || canMove) && (
           <>
             {canOpen ? <ContextMenuSeparator /> : null}
-            {canRename ? <ContextMenuItem onSelect={() => onRename?.(file)}>Rename</ContextMenuItem> : null}
-            {canMove ? <ContextMenuItem onSelect={() => onMove?.(file)}>Move To</ContextMenuItem> : null}
+            {canRename ? <ContextMenuItem onSelect={() => onRename?.(file)}>重命名</ContextMenuItem> : null}
+            {canMove ? <ContextMenuItem onSelect={() => onMove?.(file)}>移动</ContextMenuItem> : null}
           </>
-        ) : null}
+        )}
 
-        {canTrash ? (
+        {canTrash && (
           <>
-            {hasBaseActions ? <ContextMenuSeparator /> : null}
+            {hasBaseActions && <ContextMenuSeparator />}
             <ContextMenuItem variant="destructive" onSelect={() => onTrash?.(file)}>
               <Trash2Icon className="size-3.5" />
-              Move to Recycle Bin
+              放入回收站
             </ContextMenuItem>
           </>
-        ) : null}
+        )}
 
-        {canRestore ? (
+        {canRestore && (
           <>
-            {hasBaseActions || hasTrashAction ? <ContextMenuSeparator /> : null}
-            <ContextMenuItem onSelect={() => onRestore?.(file)}>Restore</ContextMenuItem>
+            {(hasBaseActions || hasTrashAction) && <ContextMenuSeparator />}
+            <ContextMenuItem onSelect={() => onRestore?.(file)}>还原</ContextMenuItem>
           </>
-        ) : null}
+        )}
 
-        {canDeleteForever ? (
+        {canDeleteForever && (
           <>
-            {hasBaseActions || hasTrashAction || canRestore ? <ContextMenuSeparator /> : null}
+            {(hasBaseActions || hasTrashAction || canRestore) && <ContextMenuSeparator />}
             <ContextMenuItem variant="destructive" onSelect={() => onDeleteForever?.(file)}>
-              Delete Forever
+              删除
             </ContextMenuItem>
           </>
-        ) : null}
+        )}
 
         {!hasAnyAction ? <ContextMenuItem disabled>No actions available</ContextMenuItem> : null}
       </ContextMenuContent>

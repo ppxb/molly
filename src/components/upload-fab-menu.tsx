@@ -16,11 +16,7 @@ interface UploadFabMenuProps {
   onCreateFolder: () => void
 }
 
-function formatPathLabel(path: string) {
-  return path ? `/${path}` : '/'
-}
-
-export function UploadFabMenu({ currentPath, onSelectFiles, onCreateFolder }: UploadFabMenuProps) {
+export function UploadFabMenu({ onSelectFiles, onCreateFolder }: UploadFabMenuProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,18 +39,18 @@ export function UploadFabMenu({ currentPath, onSelectFiles, onCreateFolder }: Up
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuLabel>Add To {formatPathLabel(currentPath)}</DropdownMenuLabel>
+            <DropdownMenuLabel>添加到</DropdownMenuLabel>
             <DropdownMenuItem onSelect={() => fileInputRef.current?.click()}>
               <FilePlusCornerIcon className="size-4" />
-              Upload files
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onCreateFolder}>
-              <FolderPlusIcon className="size-4" />
-              New folder
+              上传文件
             </DropdownMenuItem>
             <DropdownMenuItem disabled>
               <FolderUpIcon className="size-4" />
-              Upload folder (soon)
+              上传文件夹 (即将推出)
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onCreateFolder}>
+              <FolderPlusIcon className="size-4" />
+              新建文件夹
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

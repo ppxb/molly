@@ -14,6 +14,9 @@ importers:
       '@fontsource-variable/geist-mono':
         specifier: ^5.2.7
         version: 5.2.7
+      '@fontsource-variable/noto-sans-sc':
+        specifier: ^5.2.10
+        version: 5.2.10
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -278,6 +281,9 @@ packages:
 
   '@fontsource-variable/geist@5.2.8':
     resolution: {integrity: sha512-cJ6m9e+8MQ5dCYJsLylfZrgBh6KkG4bOLckB35Tr9J/EqdkEM6QllH5PxqP1dhTvFup+HtMRPuz9xOjxXJggxw==}
+
+  '@fontsource-variable/noto-sans-sc@5.2.10':
+    resolution: {integrity: sha512-zdk10i5HrDQTXI7ldD61zToX1fsgig8vDTsu7zB48SXOitWfuX0e5viZAwnkHuhwh096PU6X6i1AyAsbBCISpA==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -2094,6 +2100,8 @@ snapshots:
   '@fontsource-variable/geist-mono@5.2.7': {}
 
   '@fontsource-variable/geist@5.2.8': {}
+
+  '@fontsource-variable/noto-sans-sc@5.2.10': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
