@@ -26,17 +26,20 @@ export function createTaskFromFile(file: File, folderId: string, folderPath: str
     strategy: 'pending',
     instantUpload: false,
     uploadedFile: null,
-    errorMessage: null
+    errorMessage: null,
+    resumeState: null
   }
 }
 
 export function buildQueuedTaskState(task: UploadQueueTask): UploadQueueTask {
+  const hasResumeState = task.resumeState != null
+  const retainedLoadedBytes = hasResumeState ? task.loadedBytes : 0
   return {
     ...task,
     status: 'queued',
     stage: 'idle',
     stageMessage: 'Waiting to upload',
-    loadedBytes: 0,
+    loadedBytes: retainedLoadedBytes,
     totalBytes: task.fileSize,
     speedBytesPerSecond: 0,
     strategy: 'pending',

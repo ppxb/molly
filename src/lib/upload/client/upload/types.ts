@@ -9,6 +9,15 @@ export interface UploadProgressPayload {
 export interface UploadCallbacks {
   onStageChange?: (stage: UploadStage, message: string) => void
   onProgress?: (progress: UploadProgressPayload) => void
+  onResumeStateChange?: (resumeState: UploadResumeState | null) => void
+}
+
+export interface UploadResumeState {
+  uploadId: string
+  fileId: string
+  chunkSize: number
+  totalParts: number
+  completedPartNumbers: number[]
 }
 
 export interface UploadFileInput extends UploadCallbacks {
@@ -19,6 +28,7 @@ export interface UploadFileInput extends UploadCallbacks {
   multipartThreshold?: number
   chunkSize?: number
   multipartConcurrency?: number
+  resumeState?: UploadResumeState | null
 }
 
 export interface UploadFileResult {

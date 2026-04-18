@@ -31,7 +31,8 @@ export async function uploadPartBatch(
   partInfoList: FileUploadPartInfo[],
   chunkSize: number,
   committedBytesRef: { value: number },
-  progressReporter: MonotonicProgressReporter
+  progressReporter: MonotonicProgressReporter,
+  onPartUploaded?: (partNumber: number, uploadedBytes: number) => void
 ) {
   const orderedPartInfoList = [...partInfoList].sort((left, right) => left.part_number - right.part_number)
   const inFlightBytes = new Map<number, number>()
@@ -61,5 +62,6 @@ export async function uploadPartBatch(
     committedBytesRef.value += blob.size
     inFlightBytes.delete(partInfo.part_number)
     progressReporter.report(committedBytesRef.value)
+    onPartUploaded?.(partInfo.part_number, blob.size)
   })
 }

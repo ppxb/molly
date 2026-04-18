@@ -1,5 +1,6 @@
 import type { UploadQueueTask } from '@/components/upload/upload-queue-types'
 import type { UploadStage, UploadStrategy, UploadedFileRecord } from '@/lib/upload/shared'
+import type { UploadResumeState } from '@/lib/upload/client/upload/types'
 
 export interface UpdateTaskPatch {
   status?: UploadQueueTask['status']
@@ -12,6 +13,7 @@ export interface UpdateTaskPatch {
   instantUpload?: boolean
   uploadedFile?: UploadedFileRecord | null
   errorMessage?: string | null
+  resumeState?: UploadResumeState | null
 }
 
 function clampPercent(value: number) {

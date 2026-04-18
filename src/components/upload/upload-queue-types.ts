@@ -1,4 +1,5 @@
 import type { UploadStage, UploadStrategy, UploadedFileRecord } from '@/lib/upload/shared'
+import type { UploadResumeState } from '@/lib/upload/client/upload/types'
 
 export type UploadQueueTaskStatus = 'queued' | 'running' | 'paused' | 'done' | 'error' | 'canceled'
 
@@ -22,6 +23,7 @@ export interface UploadQueueTask {
   instantUpload: boolean
   uploadedFile: UploadedFileRecord | null
   errorMessage: string | null
+  resumeState: UploadResumeState | null
 }
 
 export interface UploadQueueOverview {

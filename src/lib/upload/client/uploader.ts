@@ -1,3 +1,4 @@
+import type { FileUploadPartInfo } from '@/lib/upload/client/api'
 import {
   completeFileRequest,
   createWithFoldersFileRequest,
@@ -16,11 +17,80 @@ import { computePreHash } from '@/lib/upload/client/upload/hashing'
 import { mapCompletedFileToUploadedFile, mapSearchItemToUploadedFile } from '@/lib/upload/client/upload/mappers'
 import { uploadPartBatch } from '@/lib/upload/client/upload/multipart'
 import { createMonotonicProgressReporter, emitProgress } from '@/lib/upload/client/upload/progress'
-import type { UploadFileInput, UploadFileResult } from '@/lib/upload/client/upload/types'
+import type { UploadFileInput, UploadFileResult, UploadResumeState } from '@/lib/upload/client/upload/types'
 import { DEFAULT_MULTIPART_THRESHOLD } from '@/lib/upload/shared'
 import type { UploadStrategy } from '@/lib/upload/shared'
 
-export type { UploadFileInput, UploadFileResult } from '@/lib/upload/client/upload/types'
+export type { UploadFileInput, UploadFileResult, UploadResumeState } from '@/lib/upload/client/upload/types'
+
+type UploadAbortErrorWithResumeState = DOMException & { resumeState?: UploadResumeState | null }
+
+function isAbortError(error: unknown): error is DOMException {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
+function getPartSize(fileSize: number, chunkSize: number, partNumber: number) {
+  const start = (partNumber - 1) * chunkSize
+  const end = Math.min(start + chunkSize, fileSize)
+  return Math.max(0, end - start)
+}
+
+function sanitizeCompletedPartNumbers(completedPartNumbers: number[], totalParts: number) {
+  const partSet = new Set<number>()
+  for (const partNumber of completedPartNumbers) {
+    if (!Number.isInteger(partNumber)) {
+      continue
+    }
+    if (partNumber < 1 || partNumber > totalParts) {
+      continue
+    }
+    partSet.add(partNumber)
+  }
+  return [...partSet].sort((left, right) => left - right)
+}
+
+function normalizeResumeState(input: UploadFileInput, totalParts: number, chunkSize: number) {
+  const state = input.resumeState
+  if (!state) {
+    return null
+  }
+  if (state.chunkSize !== chunkSize || state.totalParts !== totalParts) {
+    return null
+  }
+  if (!state.uploadId || !state.fileId) {
+    return null
+  }
+
+  const completedPartNumbers = sanitizeCompletedPartNumbers(state.completedPartNumbers, totalParts)
+  return {
+    uploadId: state.uploadId,
+    fileId: state.fileId,
+    chunkSize,
+    totalParts,
+    completedPartNumbers
+  } satisfies UploadResumeState
+}
+
+function buildResumeState(
+  uploadId: string,
+  fileId: string,
+  chunkSize: number,
+  totalParts: number,
+  completedPartNumbersSet: Set<number>
+) {
+  if (!uploadId || !fileId) {
+    return null
+  }
+
+  const completedPartNumbers = sanitizeCompletedPartNumbers([...completedPartNumbersSet], totalParts)
+  return {
+    uploadId,
+    fileId,
+    chunkSize,
+    totalParts,
+    completedPartNumbers
+  } satisfies UploadResumeState
+}
 
 export async function uploadFile(input: UploadFileInput): Promise<UploadFileResult> {
   if (!input.file) {
@@ -35,87 +105,156 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
   const totalParts = shouldMultipart ? Math.max(1, Math.ceil(input.file.size / chunkSize)) : 1
   const strategy: UploadStrategy = totalParts > 1 ? 'multipart' : 'single'
 
-  input.onStageChange?.('checking', '检查是否使用秒传')
-  const searchResult = await searchFileRequest({
-    query: buildSearchQuery(folderID, input.file.name),
-    order_by: 'name ASC',
-    limit: 1
-  })
+  const completedPartNumbers = new Set<number>()
+  let uploadID = ''
+  let fileID = ''
+  let rapidUpload = false
+  let initialPartInfoList: FileUploadPartInfo[] = []
 
-  if (searchResult.items.length > 0) {
-    emitProgress(input, input.file.size, input.file.size)
-    input.onStageChange?.('done', '秒传完成')
-    return {
-      file: mapSearchItemToUploadedFile(searchResult.items[0], input),
-      strategy: 'instant',
-      instantUpload: true
-    }
-  }
+  try {
+    const resumeState = normalizeResumeState(input, totalParts, chunkSize)
+    if (resumeState) {
+      uploadID = resumeState.uploadId
+      fileID = resumeState.fileId
+      for (const partNumber of resumeState.completedPartNumbers) {
+        completedPartNumbers.add(partNumber)
+      }
+      input.onResumeStateChange?.(resumeState)
+      input.onStageChange?.('uploading', 'Resuming upload...')
+    } else {
+      input.onStageChange?.('checking', 'Checking if a file with the same name already exists...')
+      const searchResult = await searchFileRequest({
+        query: buildSearchQuery(folderID, input.file.name),
+        order_by: 'name ASC',
+        limit: 1
+      })
 
-  const preHash = await computePreHash(input)
-  raiseIfAborted(input.signal)
-
-  const firstBatchEnd = Math.min(UPLOAD_URL_BATCH_SIZE, totalParts)
-  const firstBatchParts = buildPartInfoList(1, firstBatchEnd)
-  const localModifiedAt = input.file.lastModified > 0 ? new Date(input.file.lastModified).toISOString() : undefined
-
-  input.onStageChange?.('checking', '创建上传会话')
-  const createResult = await createWithFoldersFileRequest({
-    part_info_list: firstBatchParts,
-    parent_file_id: folderID,
-    name: input.file.name,
-    type: 'file',
-    check_name_mode: 'auto_rename',
-    size: input.file.size,
-    create_scene: 'file_upload',
-    device_name: 'web',
-    local_modified_at: localModifiedAt,
-    pre_hash: preHash,
-    content_type: input.file.type || 'application/octet-stream',
-    chunk_size: chunkSize
-  })
-
-  if (createResult.rapid_upload) {
-    input.onStageChange?.('finalizing', 'Rapid upload hit, finalizing...')
-  } else {
-    input.onStageChange?.('uploading', '上传文件')
-    const progressReporter = createMonotonicProgressReporter(input, input.file.size, 0)
-    const committedBytesRef = { value: 0 }
-    let nextPartNumber = 1
-    let partInfoList = createResult.part_info_list ?? []
-
-    while (nextPartNumber <= totalParts) {
-      if (partInfoList.length === 0) {
-        const batchEnd = Math.min(nextPartNumber + UPLOAD_URL_BATCH_SIZE - 1, totalParts)
-        const uploadURLResult = await getUploadURLFileRequest({
-          upload_id: createResult.upload_id,
-          file_id: createResult.file_id,
-          part_info_list: buildPartInfoList(nextPartNumber, batchEnd)
-        })
-        partInfoList = uploadURLResult.part_info_list
+      if (searchResult.items.length > 0) {
+        emitProgress(input, input.file.size, input.file.size)
+        input.onResumeStateChange?.(null)
+        input.onStageChange?.('done', 'Existing file found, upload skipped')
+        return {
+          file: mapSearchItemToUploadedFile(searchResult.items[0], input),
+          strategy: 'instant',
+          instantUpload: true
+        }
       }
 
-      await uploadPartBatch(input, partInfoList, chunkSize, committedBytesRef, progressReporter)
-      const maxPartNumber = Math.max(...partInfoList.map(item => item.part_number))
-      nextPartNumber = maxPartNumber + 1
-      partInfoList = []
+      const preHash = await computePreHash(input)
+      raiseIfAborted(input.signal)
+
+      input.onStageChange?.('checking', 'Creating upload session...')
+      const firstBatchEnd = Math.min(UPLOAD_URL_BATCH_SIZE, totalParts)
+      const localModifiedAt = input.file.lastModified > 0 ? new Date(input.file.lastModified).toISOString() : undefined
+      const createResult = await createWithFoldersFileRequest({
+        part_info_list: buildPartInfoList(1, firstBatchEnd),
+        parent_file_id: folderID,
+        name: input.file.name,
+        type: 'file',
+        check_name_mode: 'auto_rename',
+        size: input.file.size,
+        create_scene: 'file_upload',
+        device_name: 'web',
+        local_modified_at: localModifiedAt,
+        pre_hash: preHash,
+        content_type: input.file.type || 'application/octet-stream',
+        chunk_size: chunkSize
+      })
+
+      uploadID = createResult.upload_id
+      fileID = createResult.file_id
+      rapidUpload = Boolean(createResult.rapid_upload)
+      initialPartInfoList = createResult.part_info_list ?? []
+      input.onResumeStateChange?.(buildResumeState(uploadID, fileID, chunkSize, totalParts, completedPartNumbers))
     }
 
-    progressReporter.force(input.file.size)
-  }
+    const committedBytesRef = {
+      value: [...completedPartNumbers].reduce(
+        (sum, partNumber) => sum + getPartSize(input.file.size, chunkSize, partNumber),
+        0
+      )
+    }
 
-  raiseIfAborted(input.signal)
-  input.onStageChange?.('finalizing', '分片合并')
-  const completed = await completeFileRequest({
-    upload_id: createResult.upload_id,
-    file_id: createResult.file_id
-  })
+    if (!rapidUpload) {
+      input.onStageChange?.('uploading', 'Uploading file parts...')
+      const progressReporter = createMonotonicProgressReporter(input, input.file.size, committedBytesRef.value)
 
-  emitProgress(input, input.file.size, input.file.size)
-  input.onStageChange?.('done', '上传完成')
-  return {
-    file: mapCompletedFileToUploadedFile(completed, input, strategy),
-    strategy,
-    instantUpload: false
+      while (true) {
+        raiseIfAborted(input.signal)
+
+        const pendingPartNumbers: number[] = []
+        for (let partNumber = 1; partNumber <= totalParts; partNumber += 1) {
+          if (completedPartNumbers.has(partNumber)) {
+            continue
+          }
+          pendingPartNumbers.push(partNumber)
+          if (pendingPartNumbers.length >= UPLOAD_URL_BATCH_SIZE) {
+            break
+          }
+        }
+
+        if (pendingPartNumbers.length === 0) {
+          break
+        }
+
+        let partInfoList: FileUploadPartInfo[] = []
+        if (initialPartInfoList.length > 0) {
+          const initialPartInfoMap = new Map(initialPartInfoList.map(item => [item.part_number, item]))
+          const initialBatch = pendingPartNumbers
+            .map(partNumber => initialPartInfoMap.get(partNumber))
+            .filter((item): item is FileUploadPartInfo => Boolean(item))
+          if (initialBatch.length === pendingPartNumbers.length) {
+            partInfoList = initialBatch
+          }
+          initialPartInfoList = []
+        }
+
+        if (partInfoList.length === 0) {
+          const uploadURLResult = await getUploadURLFileRequest({
+            upload_id: uploadID,
+            file_id: fileID,
+            part_info_list: pendingPartNumbers.map(partNumber => ({ part_number: partNumber }))
+          })
+          partInfoList = uploadURLResult.part_info_list
+        }
+
+        await uploadPartBatch(input, partInfoList, chunkSize, committedBytesRef, progressReporter, partNumber => {
+          if (completedPartNumbers.has(partNumber)) {
+            return
+          }
+          completedPartNumbers.add(partNumber)
+          input.onResumeStateChange?.(buildResumeState(uploadID, fileID, chunkSize, totalParts, completedPartNumbers))
+        })
+      }
+
+      progressReporter.force(input.file.size)
+    } else {
+      input.onStageChange?.('finalizing', 'Rapid upload hit, finalizing...')
+    }
+
+    raiseIfAborted(input.signal)
+    input.onStageChange?.('finalizing', 'Completing upload...')
+    const completed = await completeFileRequest({
+      upload_id: uploadID,
+      file_id: fileID
+    })
+
+    emitProgress(input, input.file.size, input.file.size)
+    input.onResumeStateChange?.(null)
+    input.onStageChange?.('done', 'Upload completed')
+    return {
+      file: mapCompletedFileToUploadedFile(completed, input, strategy),
+      strategy,
+      instantUpload: false
+    }
+  } catch (error) {
+    if (isAbortError(error)) {
+      const resumeState = buildResumeState(uploadID, fileID, chunkSize, totalParts, completedPartNumbers)
+      input.onResumeStateChange?.(resumeState)
+      const abortError = error as UploadAbortErrorWithResumeState
+      abortError.resumeState = resumeState
+      throw abortError
+    }
+    throw error
   }
 }

@@ -16,6 +16,7 @@ import {
 import { getErrorMessage } from '@/lib/upload/client/api'
 import { uploadRuntimeConfig } from '@/lib/upload/client/runtime-config'
 import { uploadFile } from '@/lib/upload/client/uploader'
+import type { UploadResumeState } from '@/lib/upload/client/upload/types'
 import { normalizeFolderPath } from '@/lib/upload/path'
 import { DEFAULT_MULTIPART_CHUNK_SIZE, DEFAULT_MULTIPART_THRESHOLD } from '@/lib/upload/shared'
 import type { UploadedFileRecord } from '@/lib/upload/shared'
@@ -33,6 +34,15 @@ interface AddFilesOptions {
 type AbortIntent = 'pause' | 'cancel'
 const SPEED_SAMPLE_INTERVAL_MS = 250
 const SPEED_SMOOTHING_WEIGHT = 0.25
+
+function readResumeStateFromAbortError(error: unknown) {
+  if (!(error instanceof DOMException) || error.name !== 'AbortError') {
+    return undefined
+  }
+
+  const candidate = error as DOMException & { resumeState?: UploadResumeState | null }
+  return candidate.resumeState
+}
 
 export function useUploadQueue(options: UseUploadQueueOptions = {}) {
   const [tasks, setTasks] = useState<UploadQueueTask[]>([])
@@ -89,7 +99,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         status: 'running',
         stage: 'checking',
         stageMessage: 'Preparing upload...',
-        loadedBytes: 0,
+        loadedBytes: task.resumeState ? task.loadedBytes : 0,
         totalBytes: task.fileSize,
         speedBytesPerSecond: 0,
         errorMessage: null
@@ -104,6 +114,12 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
           multipartThreshold: uploadRuntimeConfig.multipartThreshold ?? DEFAULT_MULTIPART_THRESHOLD,
           chunkSize: DEFAULT_MULTIPART_CHUNK_SIZE,
           multipartConcurrency: uploadRuntimeConfig.multipartConcurrency,
+          resumeState: task.resumeState,
+          onResumeStateChange: resumeState => {
+            patchTask(taskID, {
+              resumeState
+            })
+          },
           onStageChange: (stage, stageMessage) => {
             patchTask(taskID, {
               stage,
@@ -163,7 +179,8 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
           loadedBytes: task.fileSize,
           totalBytes: task.fileSize,
           speedBytesPerSecond: 0,
-          errorMessage: null
+          errorMessage: null,
+          resumeState: null
         })
 
         await onTaskDoneRef.current?.(result.file)
@@ -171,6 +188,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         const isAbort = error instanceof DOMException && error.name === 'AbortError'
         const abortIntent = taskAbortIntentRef.current.get(taskID)
         const failureMessage = getErrorMessage(error, 'Upload failed')
+        const resumeState = readResumeStateFromAbortError(error)
 
         if (isAbort && abortIntent === 'cancel') {
           return
@@ -182,7 +200,8 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
             stage: 'idle',
             stageMessage: 'Paused',
             speedBytesPerSecond: 0,
-            errorMessage: null
+            errorMessage: null,
+            resumeState: resumeState ?? task.resumeState
           })
           return
         }
@@ -192,7 +211,8 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
           stage: isAbort ? 'idle' : 'error',
           stageMessage: isAbort ? 'Paused' : failureMessage,
           speedBytesPerSecond: 0,
-          errorMessage: isAbort ? null : failureMessage
+          errorMessage: isAbort ? null : failureMessage,
+          resumeState: resumeState ?? task.resumeState
         })
       } finally {
         taskControllersRef.current.delete(taskID)

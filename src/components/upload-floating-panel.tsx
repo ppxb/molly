@@ -51,7 +51,7 @@ function TaskItem({ task, onCancel, onPause, onContinue }: TaskItemProps) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2 font-mono text-xs text-muted-foreground">
+      <div className="flex items-center justify-between gap-2 font-mix text-xs text-muted-foreground">
         <span>
           {formatBytes(task.loadedBytes)} / {formatBytes(task.totalBytes)}
         </span>
