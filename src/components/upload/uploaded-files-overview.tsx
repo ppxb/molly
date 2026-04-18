@@ -1,6 +1,5 @@
 import {
   ArrowDownToLine,
-  ChevronRight,
   Eye,
   FileArchiveIcon,
   FileAudioIcon,
@@ -11,13 +10,21 @@ import {
   FileVideoIcon,
   FolderIcon,
   FolderUpIcon,
-  HomeIcon,
+  HouseIcon,
   Loader2,
   RefreshCcw,
   FolderPlusIcon,
   FilePlusCornerIcon
 } from 'lucide-react'
 
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from '@/components/ui/breadcrumb'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -134,25 +141,42 @@ export function UploadedFilesOverview({
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-1 border bg-muted/30 p-2">
-            {pathItems.map((item, index) => {
-              const isRoot = item.id === 'root'
-              const isCurrent = item.id === currentFolderId
-              return (
-                <div key={item.id} className="flex items-center gap-1">
-                  {index > 0 ? <ChevronRight className="size-3.5 text-muted-foreground" /> : null}
-                  <Button
-                    variant={isCurrent ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="h-7 px-2"
-                    onClick={() => onNavigate(item.id)}
-                  >
-                    {isRoot ? <HomeIcon className="size-3.5" /> : null}
-                    {item.label}
-                  </Button>
-                </div>
-              )
-            })}
+          <div className="border bg-muted/30 p-2">
+            <Breadcrumb>
+              <BreadcrumbList className="gap-1.5 sm:gap-1.5">
+                {pathItems.map((item, index) => {
+                  const isRoot = item.id === 'root'
+                  const isCurrent = item.id === currentFolderId
+                  const label = isRoot ? 'Home' : item.label
+
+                  return (
+                    <BreadcrumbItem key={item.id}>
+                      {isCurrent ? (
+                        <BreadcrumbPage className="inline-flex items-center font-semibold">
+                          <span className="inline-flex items-center gap-1.5">
+                            {isRoot ? <HouseIcon className="size-4" aria-hidden="true" /> : null}
+                            {label}
+                          </span>
+                        </BreadcrumbPage>
+                      ) : (
+                        <BreadcrumbLink
+                          href="#"
+                          className="inline-flex items-center gap-1.5"
+                          onClick={event => {
+                            event.preventDefault()
+                            onNavigate(item.id)
+                          }}
+                        >
+                          {isRoot ? <HouseIcon className="size-4" aria-hidden="true" /> : null}
+                          {label}
+                        </BreadcrumbLink>
+                      )}
+                      {index < pathItems.length - 1 ? <BreadcrumbSeparator /> : null}
+                    </BreadcrumbItem>
+                  )
+                })}
+              </BreadcrumbList>
+            </Breadcrumb>
           </div>
 
           <ContextMenu>

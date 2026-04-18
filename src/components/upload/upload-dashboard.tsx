@@ -12,10 +12,10 @@ import { UploadedFilesOverview } from '@/components/upload/uploaded-files-overvi
 import {
   createUploadFolderRequest,
   getFileAccessUrlRequest,
+  getLatestAsyncTaskRequest,
   listUploadEntriesRequest,
   listUploadMoveTargetsRequest,
-  renameUploadedFileRequest,
-  renameUploadFolderRequest,
+  updateFileRequest,
   uploadBatchRequest
 } from '@/lib/upload/client/api'
 import { scheduleHashWorkerPrewarm } from '@/lib/upload/client/hash'
@@ -202,19 +202,12 @@ function UploadDashboardContent() {
 
       setIsRenaming(true)
       try {
-        if (renameTarget.type === 'file') {
-          await renameUploadedFileRequest({
-            fileId: renameTarget.id,
-            fileName: nextName
-          })
-          toast.success('File renamed')
-        } else {
-          await renameUploadFolderRequest({
-            folderId: renameTarget.id,
-            folderName: nextName
-          })
-          toast.success('Folder renamed')
-        }
+        await updateFileRequest({
+          file_id: renameTarget.id,
+          name: nextName,
+          check_name_mode: 'refuse'
+        })
+        toast.success(renameTarget.type === 'file' ? 'File renamed' : 'Folder renamed')
 
         setRenameTarget(null)
         await loadEntries(currentFolderIdRef.current)
@@ -235,34 +228,33 @@ function UploadDashboardContent() {
 
       setIsMoving(true)
       try {
+        await getLatestAsyncTaskRequest()
+
         const batch = await uploadBatchRequest({
-          resource: moveTarget.type,
+          resource: 'file',
           requests: [
-            moveTarget.type === 'file'
-              ? {
-                  id: moveTarget.id,
-                  method: 'POST',
-                  url: '/file/move',
-                  body: {
-                    fileId: moveTarget.id,
-                    targetFolderId
-                  }
-                }
-              : {
-                  id: moveTarget.id,
-                  method: 'POST',
-                  url: '/folder/move',
-                  body: {
-                    folderId: moveTarget.id,
-                    targetParentId: targetFolderId
-                  }
-                }
+            {
+              id: moveTarget.id,
+              method: 'POST',
+              url: '/file/move',
+              body: {
+                file_id: moveTarget.id,
+                file_name: moveTarget.name,
+                type: moveTarget.type,
+                to_parent_file_id: targetFolderId
+              }
+            }
           ]
         })
 
         const result = batch.responses[0]
-        if (!result || !result.success) {
-          throw new Error(result?.error || 'Failed to move')
+        if (!result || result.status !== 200) {
+          const body = result?.body
+          const message =
+            body && typeof body === 'object' && 'message' in body && typeof body['message'] === 'string'
+              ? body['message']
+              : 'Failed to move'
+          throw new Error(message)
         }
 
         toast.success(moveTarget.type === 'file' ? 'File moved' : 'Folder moved')

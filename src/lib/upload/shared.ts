@@ -59,18 +59,6 @@ export interface UploadBreadcrumbItem {
   path: string
 }
 
-export interface UploadFolderCreateResponse {
-  folder: UploadFolderRecord
-}
-
-export interface UploadFileRenameResponse {
-  file: UploadedFileRecord
-}
-
-export interface UploadFolderRenameResponse {
-  folder: UploadFolderRecord
-}
-
 export interface UploadFileMoveResponse {
   file: UploadedFileRecord
 }
@@ -84,31 +72,31 @@ export interface UploadMoveTargetsResponse {
 }
 
 export interface UploadBatchActionRequest {
-  fileId?: string
-  folderId?: string
-  targetFolderId?: string
-  targetParentId?: string
-  fileName?: string
-  folderName?: string
+  drive_id?: string
+  file_id: string
+  file_name?: string
+  type: 'file' | 'folder'
+  to_drive_id?: string
+  to_parent_file_id: string
 }
 
 export interface UploadBatchRequestItem {
   id: string
   method: 'POST'
-  url: '/file/move' | '/folder/move' | '/file/rename' | '/folder/rename'
+  url: '/file/move'
   body: UploadBatchActionRequest
+  headers?: Record<string, string>
 }
 
 export interface UploadBatchRequest {
-  resource?: 'file' | 'folder'
+  resource?: 'file'
   requests: UploadBatchRequestItem[]
 }
 
 export interface UploadBatchResponseItem {
   id: string
-  success: boolean
-  data?: UploadFileMoveResponse | UploadFolderMoveResponse | UploadFileRenameResponse | UploadFolderRenameResponse
-  error?: string
+  status: number
+  body?: Record<string, unknown>
 }
 
 export interface UploadBatchResponse {

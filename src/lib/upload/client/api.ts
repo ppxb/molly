@@ -4,10 +4,7 @@ import type {
   UploadBatchResponse,
   UploadBreadcrumbItem,
   UploadEntriesResponse,
-  UploadFileRenameResponse,
-  UploadFolderCreateResponse,
   UploadFolderRecord,
-  UploadFolderRenameResponse,
   UploadMoveTargetsResponse,
   UploadedFileRecord
 } from '@/lib/upload/shared'
@@ -194,6 +191,13 @@ export interface FileCompleteResponse {
   sync_meta?: string
   location?: string
   content_uri?: string
+}
+
+export interface FileGetLatestAsyncTaskResponse {
+  total_process: number
+  total_failed_process: number
+  total_skipped_process: number
+  total_consumed_process: number
 }
 
 async function requestJSON<T>(path: string, body: unknown = {}) {
@@ -427,30 +431,37 @@ export function listUploadEntriesRequest(folderId: string) {
 }
 
 export function createUploadFolderRequest(input: { parentFolderId?: string; folderName: string }) {
-  return requestJSON<UploadFolderCreateResponse>('/v1/upload/folder/create', {
-    parentFolderId: input.parentFolderId,
-    folderName: input.folderName
+  return requestJSON<FileCreateWithFoldersResponse>('/v1/file/create_with_folders', {
+    parent_file_id: input.parentFolderId || 'root',
+    name: input.folderName,
+    type: 'folder',
+    check_name_mode: 'refuse'
   })
 }
 
 export function listUploadMoveTargetsRequest(input?: { excludeFolderId?: string }) {
-  return requestJSON<UploadMoveTargetsResponse>('/v1/upload/move_targets', {
+  return requestJSON<UploadMoveTargetsResponse>('/v1/file/list_move_targets', {
     excludeFolderId: input?.excludeFolderId
   })
 }
 
-export function renameUploadedFileRequest(input: { fileId: string; fileName: string }) {
-  return requestJSON<UploadFileRenameResponse>('/v1/upload/file/rename', input)
+export function updateFileRequest(input: {
+  drive_id?: string
+  file_id: string
+  name: string
+  check_name_mode?: 'refuse' | 'auto_rename'
+}) {
+  return requestJSON<FileGetResponse>('/v1/file/update', input)
 }
 
-export function renameUploadFolderRequest(input: { folderId: string; folderName: string }) {
-  return requestJSON<UploadFolderRenameResponse>('/v1/upload/folder/rename', input)
+export function getLatestAsyncTaskRequest(input?: { drive_id?: string }) {
+  return requestJSON<FileGetLatestAsyncTaskResponse>('/v1/file/get_latest_async_task', input ?? {})
 }
 
 export function uploadBatchRequest(input: UploadBatchRequest) {
-  return requestJSON<UploadBatchResponse>('/v1/upload/batch', input)
+  return requestJSON<UploadBatchResponse>('/v1/batch', input)
 }
 
 export function getFileAccessUrlRequest(input: { fileId: string; mode: 'preview' | 'download' }) {
-  return requestJSON<FileAccessUrlResponse>('/v1/upload/file/access_url', input)
+  return requestJSON<FileAccessUrlResponse>('/v1/file/get_access_url', input)
 }
