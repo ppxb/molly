@@ -105,7 +105,7 @@ export function UploadFloatingPanel({
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <p className="text-sm">{overview.overallStatusText}</p>
-              <Badge variant={overview.runningTasks > 0 ? 'warning' : 'secondary'}>
+              <Badge variant={overview.runningTasks > 0 ? 'destructive' : 'secondary'}>
                 Remaining {overview.remainingTasks}
               </Badge>
             </div>
