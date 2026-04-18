@@ -1,4 +1,5 @@
 import { HouseIcon } from 'lucide-react'
+import { Fragment } from 'react'
 
 import {
   Breadcrumb,
@@ -27,29 +28,31 @@ export function UploadBreadcrumbNav({ currentFolderId, breadcrumbs, onNavigate }
             const label = isRoot ? 'Home' : item.label
 
             return (
-              <BreadcrumbItem key={item.id}>
-                {isCurrent ? (
-                  <BreadcrumbPage className="inline-flex items-center font-semibold">
-                    <span className="inline-flex items-center gap-1.5">
+              <Fragment key={item.id}>
+                <BreadcrumbItem>
+                  {isCurrent ? (
+                    <BreadcrumbPage className="inline-flex items-center font-semibold">
+                      <span className="inline-flex items-center gap-1.5">
+                        {isRoot ? <HouseIcon className="size-4" aria-hidden="true" /> : null}
+                        {label}
+                      </span>
+                    </BreadcrumbPage>
+                  ) : (
+                    <BreadcrumbLink
+                      href="#"
+                      className="inline-flex items-center gap-1.5"
+                      onClick={event => {
+                        event.preventDefault()
+                        onNavigate(item.id)
+                      }}
+                    >
                       {isRoot ? <HouseIcon className="size-4" aria-hidden="true" /> : null}
                       {label}
-                    </span>
-                  </BreadcrumbPage>
-                ) : (
-                  <BreadcrumbLink
-                    href="#"
-                    className="inline-flex items-center gap-1.5"
-                    onClick={event => {
-                      event.preventDefault()
-                      onNavigate(item.id)
-                    }}
-                  >
-                    {isRoot ? <HouseIcon className="size-4" aria-hidden="true" /> : null}
-                    {label}
-                  </BreadcrumbLink>
-                )}
+                    </BreadcrumbLink>
+                  )}
+                </BreadcrumbItem>
                 {index < breadcrumbs.length - 1 ? <BreadcrumbSeparator /> : null}
-              </BreadcrumbItem>
+              </Fragment>
             )
           })}
         </BreadcrumbList>

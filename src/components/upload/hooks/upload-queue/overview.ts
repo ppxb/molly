@@ -6,11 +6,13 @@ export function buildUploadQueueOverview(tasks: UploadQueueTask[], isQueueActive
   let doneTasks = 0
   let pausedTasks = 0
   let errorTasks = 0
+  let totalSpeedBytesPerSecond = 0
 
   for (const task of tasks) {
     switch (task.status) {
       case 'running':
         runningTasks += 1
+        totalSpeedBytesPerSecond += Math.max(0, task.speedBytesPerSecond)
         break
       case 'queued':
         queuedTasks += 1
@@ -56,6 +58,7 @@ export function buildUploadQueueOverview(tasks: UploadQueueTask[], isQueueActive
     queuedTasks,
     doneTasks,
     pausedTasks,
+    totalSpeedBytesPerSecond,
     overallStatusText
   }
 }

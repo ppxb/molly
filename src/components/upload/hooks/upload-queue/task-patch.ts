@@ -7,6 +7,7 @@ export interface UpdateTaskPatch {
   stageMessage?: string
   loadedBytes?: number
   totalBytes?: number
+  speedBytesPerSecond?: number
   strategy?: UploadStrategy | 'pending'
   instantUpload?: boolean
   uploadedFile?: UploadedFileRecord | null
@@ -41,6 +42,7 @@ export function buildPausedTaskState(task: UploadQueueTask): UploadQueueTask {
     status: 'paused',
     stage: 'idle',
     stageMessage: 'Paused',
+    speedBytesPerSecond: 0,
     errorMessage: null
   }
 }

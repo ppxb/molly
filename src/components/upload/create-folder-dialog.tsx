@@ -1,15 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 
 const DEFAULT_FOLDER_NAME = 'New Folder'
@@ -22,17 +14,7 @@ interface CreateFolderDialogProps {
   onConfirm: (folderName: string) => Promise<void> | void
 }
 
-function getPathLabel(path: string) {
-  return path ? `/${path}` : '/'
-}
-
-export function CreateFolderDialog({
-  open,
-  currentPath,
-  isSubmitting = false,
-  onOpenChange,
-  onConfirm
-}: CreateFolderDialogProps) {
+export function CreateFolderDialog({ open, isSubmitting = false, onOpenChange, onConfirm }: CreateFolderDialogProps) {
   const [folderName, setFolderName] = useState(DEFAULT_FOLDER_NAME)
 
   useEffect(() => {
@@ -57,7 +39,6 @@ export function CreateFolderDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create Folder</DialogTitle>
-          <DialogDescription>Current directory: {getPathLabel(currentPath)}</DialogDescription>
         </DialogHeader>
 
         <div className="mt-3">

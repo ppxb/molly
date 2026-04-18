@@ -1,10 +1,14 @@
 import { useCallback, useState, type MutableRefObject } from 'react'
 import { toast } from 'sonner'
 
+import { useUploadBrowserStore } from '@/components/upload/stores/upload-browser-store'
 import {
+  createBatchItemError,
   createFolderRequest,
+  getErrorMessage,
   getLatestAsyncTaskRequest,
   listMoveTargetsRequest,
+  recycleBinTrashRequest,
   updateFileRequest,
   uploadBatchRequest
 } from '@/lib/upload/client/api'
@@ -24,6 +28,12 @@ interface MoveTarget {
   excludeFolderId?: string
 }
 
+interface TrashTarget {
+  id: string
+  type: 'file' | 'folder'
+  name: string
+}
+
 interface UseUploadEntryActionsInput {
   currentFolderId: string
   currentFolderIdRef: MutableRefObject<string>
@@ -32,6 +42,11 @@ interface UseUploadEntryActionsInput {
 
 export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
   const { currentFolderId, currentFolderIdRef, loadEntries } = input
+  const currentPath = useUploadBrowserStore(state => state.currentPath)
+  const breadcrumbs = useUploadBrowserStore(state => state.breadcrumbs)
+  const files = useUploadBrowserStore(state => state.files)
+  const folders = useUploadBrowserStore(state => state.folders)
+  const setEntries = useUploadBrowserStore(state => state.setEntries)
 
   const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = useState(false)
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
@@ -41,6 +56,8 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
   const [isLoadingMoveTargets, setIsLoadingMoveTargets] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
+  const [trashTarget, setTrashTarget] = useState<TrashTarget | null>(null)
+  const [isTrashing, setIsTrashing] = useState(false)
 
   const createFolder = useCallback(
     async (folderName: string) => {
@@ -60,7 +77,7 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
         setIsCreateFolderDialogOpen(false)
         await loadEntries(currentFolderId)
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to create folder')
+        toast.error(getErrorMessage(error, 'Failed to create folder'))
       } finally {
         setIsCreatingFolder(false)
       }
@@ -84,7 +101,7 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
       setMoveTargetFolders(data.folders)
     } catch (error) {
       setMoveTarget(null)
-      toast.error(error instanceof Error ? error.message : 'Failed to load move targets')
+      toast.error(getErrorMessage(error, 'Failed to load move targets'))
     } finally {
       setIsLoadingMoveTargets(false)
     }
@@ -107,7 +124,7 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
         setRenameTarget(null)
         await loadEntries(currentFolderIdRef.current)
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to rename')
+        toast.error(getErrorMessage(error, 'Failed to rename'))
       } finally {
         setIsRenaming(false)
       }
@@ -144,25 +161,121 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
 
         const result = batch.responses[0]
         if (!result || result.status !== 200) {
-          const body = result?.body
-          const message =
-            body && typeof body === 'object' && 'message' in body && typeof body['message'] === 'string'
-              ? body['message']
-              : 'Failed to move'
-          throw new Error(message)
+          throw createBatchItemError(result, 'Failed to move')
         }
 
         toast.success(moveTarget.type === 'file' ? 'File moved' : 'Folder moved')
         setMoveTarget(null)
         await loadEntries(currentFolderIdRef.current)
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to move')
+        toast.error(getErrorMessage(error, 'Failed to move'))
       } finally {
         setIsMoving(false)
       }
     },
     [currentFolderIdRef, loadEntries, moveTarget]
   )
+
+  const submitTrash = useCallback(async () => {
+    if (!trashTarget) {
+      return
+    }
+
+    const target = trashTarget
+    const folderIdAtAction = currentFolderIdRef.current
+    let rollback: (() => void) | null = null
+
+    if (target.type === 'file') {
+      const removedIndex = files.findIndex(file => file.id === target.id)
+      if (removedIndex >= 0) {
+        const removed = files[removedIndex]
+        const nextFiles = files.filter(file => file.id !== target.id)
+
+        setEntries({
+          folderId: folderIdAtAction,
+          path: currentPath,
+          breadcrumbs,
+          folders,
+          files: nextFiles
+        })
+
+        rollback = () => {
+          if (currentFolderIdRef.current !== folderIdAtAction) {
+            return
+          }
+
+          setEntries({
+            folderId: folderIdAtAction,
+            path: currentPath,
+            breadcrumbs,
+            folders,
+            files: (() => {
+              if (nextFiles.some(file => file.id === removed.id)) {
+                return nextFiles
+              }
+              const restored = [...nextFiles]
+              const insertAt = Math.min(removedIndex, restored.length)
+              restored.splice(insertAt, 0, removed)
+              return restored
+            })()
+          })
+        }
+      }
+    } else {
+      const removedIndex = folders.findIndex(folder => folder.id === target.id)
+      if (removedIndex >= 0) {
+        const removed = folders[removedIndex]
+        const nextFolders = folders.filter(folder => folder.id !== target.id)
+
+        setEntries({
+          folderId: folderIdAtAction,
+          path: currentPath,
+          breadcrumbs,
+          folders: nextFolders,
+          files
+        })
+
+        rollback = () => {
+          if (currentFolderIdRef.current !== folderIdAtAction) {
+            return
+          }
+
+          setEntries({
+            folderId: folderIdAtAction,
+            path: currentPath,
+            breadcrumbs,
+            folders: (() => {
+              if (nextFolders.some(folder => folder.id === removed.id)) {
+                return nextFolders
+              }
+              const restored = [...nextFolders]
+              const insertAt = Math.min(removedIndex, restored.length)
+              restored.splice(insertAt, 0, removed)
+              return restored
+            })(),
+            files
+          })
+        }
+      }
+    }
+
+    setIsTrashing(true)
+    setTrashTarget(null)
+    try {
+      await recycleBinTrashRequest({
+        file_id: target.id
+      })
+      toast.success(target.type === 'file' ? 'File moved to recycle bin' : 'Folder moved to recycle bin')
+      if (currentFolderIdRef.current === folderIdAtAction) {
+        void loadEntries(folderIdAtAction)
+      }
+    } catch (error) {
+      rollback?.()
+      toast.error(getErrorMessage(error, 'Failed to move to recycle bin'))
+    } finally {
+      setIsTrashing(false)
+    }
+  }, [breadcrumbs, currentFolderIdRef, currentPath, files, folders, loadEntries, setEntries, trashTarget])
 
   const onRenameFile = useCallback((file: UploadedFileRecord) => {
     setRenameTarget({
@@ -205,6 +318,22 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
     [openMoveDialog]
   )
 
+  const onTrashFile = useCallback((file: UploadedFileRecord) => {
+    setTrashTarget({
+      id: file.id,
+      type: 'file',
+      name: file.fileName
+    })
+  }, [])
+
+  const onTrashFolder = useCallback((folder: UploadFolderRecord) => {
+    setTrashTarget({
+      id: folder.id,
+      type: 'folder',
+      name: folder.folderName
+    })
+  }, [])
+
   const onRenameDialogOpenChange = useCallback((open: boolean) => {
     if (!open) {
       setRenameTarget(null)
@@ -214,6 +343,12 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
   const onMoveDialogOpenChange = useCallback((open: boolean) => {
     if (!open) {
       setMoveTarget(null)
+    }
+  }, [])
+
+  const onTrashDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setTrashTarget(null)
     }
   }, [])
 
@@ -235,6 +370,12 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
     submitMove,
     onMoveDialogOpenChange,
     onMoveFile,
-    onMoveFolder
+    onMoveFolder,
+    trashTarget,
+    isTrashing,
+    submitTrash,
+    onTrashDialogOpenChange,
+    onTrashFile,
+    onTrashFolder
   }
 }

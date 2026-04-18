@@ -8,7 +8,8 @@ import {
   FileImageIcon,
   FileTextIcon,
   FileVideoIcon,
-  FolderIcon
+  FolderIcon,
+  Trash2Icon
 } from 'lucide-react'
 
 import {
@@ -24,12 +25,19 @@ import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/upload/shared
 interface UploadEntryGridProps {
   folders: UploadFolderRecord[]
   files: UploadedFileRecord[]
-  onNavigate: (folderId: string) => void
-  onOpenFile: (fileId: string, mode: 'preview' | 'download') => void
-  onRenameFile: (file: UploadedFileRecord) => void
-  onMoveFile: (file: UploadedFileRecord) => void
-  onRenameFolder: (folder: UploadFolderRecord) => void
-  onMoveFolder: (folder: UploadFolderRecord) => void
+  onNavigate?: (folderId: string) => void
+  onOpenFile?: (fileId: string, mode: 'preview' | 'download') => void
+  onRenameFile?: (file: UploadedFileRecord) => void
+  onMoveFile?: (file: UploadedFileRecord) => void
+  onTrashFile?: (file: UploadedFileRecord) => void
+  onRestoreFile?: (file: UploadedFileRecord) => void
+  onDeleteForeverFile?: (file: UploadedFileRecord) => void
+  onRenameFolder?: (folder: UploadFolderRecord) => void
+  onMoveFolder?: (folder: UploadFolderRecord) => void
+  onTrashFolder?: (folder: UploadFolderRecord) => void
+  onRestoreFolder?: (folder: UploadFolderRecord) => void
+  onDeleteForeverFolder?: (folder: UploadFolderRecord) => void
+  emptyMessage?: string
 }
 
 function formatDateTime(iso: string) {
@@ -86,20 +94,36 @@ function FolderEntryCard({
   folder,
   onNavigate,
   onRename,
-  onMove
+  onMove,
+  onTrash,
+  onRestore,
+  onDeleteForever
 }: {
   folder: UploadFolderRecord
-  onNavigate: (folderId: string) => void
-  onRename: (folder: UploadFolderRecord) => void
-  onMove: (folder: UploadFolderRecord) => void
+  onNavigate?: (folderId: string) => void
+  onRename?: (folder: UploadFolderRecord) => void
+  onMove?: (folder: UploadFolderRecord) => void
+  onTrash?: (folder: UploadFolderRecord) => void
+  onRestore?: (folder: UploadFolderRecord) => void
+  onDeleteForever?: (folder: UploadFolderRecord) => void
 }) {
+  const canOpen = Boolean(onNavigate)
+  const canRename = Boolean(onRename)
+  const canMove = Boolean(onMove)
+  const canTrash = Boolean(onTrash)
+  const canRestore = Boolean(onRestore)
+  const canDeleteForever = Boolean(onDeleteForever)
+  const hasBaseActions = canOpen || canRename || canMove
+  const hasTrashAction = canTrash
+  const hasAnyAction = hasBaseActions || hasTrashAction || canRestore || canDeleteForever
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <button
           type="button"
           className="group flex h-40 flex-col items-center justify-center gap-3 border p-4 text-left transition hover:bg-muted/40"
-          onDoubleClick={() => onNavigate(folder.id)}
+          onClick={() => onNavigate?.(folder.id)}
         >
           <FolderIcon className="size-9 text-amber-500" />
           <NameWithTooltip value={folder.folderName} />
@@ -107,10 +131,43 @@ function FolderEntryCard({
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onSelect={() => onNavigate(folder.id)}>Open</ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => onRename(folder)}>Rename</ContextMenuItem>
-        <ContextMenuItem onSelect={() => onMove(folder)}>Move To</ContextMenuItem>
+        {canOpen ? <ContextMenuItem onSelect={() => onNavigate?.(folder.id)}>Open</ContextMenuItem> : null}
+
+        {canRename || canMove ? (
+          <>
+            {canOpen ? <ContextMenuSeparator /> : null}
+            {canRename ? <ContextMenuItem onSelect={() => onRename?.(folder)}>Rename</ContextMenuItem> : null}
+            {canMove ? <ContextMenuItem onSelect={() => onMove?.(folder)}>Move To</ContextMenuItem> : null}
+          </>
+        ) : null}
+
+        {canTrash ? (
+          <>
+            {hasBaseActions ? <ContextMenuSeparator /> : null}
+            <ContextMenuItem variant="destructive" onSelect={() => onTrash?.(folder)}>
+              <Trash2Icon className="size-3.5" />
+              Move to Recycle Bin
+            </ContextMenuItem>
+          </>
+        ) : null}
+
+        {canRestore ? (
+          <>
+            {hasBaseActions || hasTrashAction ? <ContextMenuSeparator /> : null}
+            <ContextMenuItem onSelect={() => onRestore?.(folder)}>Restore</ContextMenuItem>
+          </>
+        ) : null}
+
+        {canDeleteForever ? (
+          <>
+            {hasBaseActions || hasTrashAction || canRestore ? <ContextMenuSeparator /> : null}
+            <ContextMenuItem variant="destructive" onSelect={() => onDeleteForever?.(folder)}>
+              Delete Forever
+            </ContextMenuItem>
+          </>
+        ) : null}
+
+        {!hasAnyAction ? <ContextMenuItem disabled>No actions available</ContextMenuItem> : null}
       </ContextMenuContent>
     </ContextMenu>
   )
@@ -120,20 +177,36 @@ function FileEntryCard({
   file,
   onOpenFile,
   onRename,
-  onMove
+  onMove,
+  onTrash,
+  onRestore,
+  onDeleteForever
 }: {
   file: UploadedFileRecord
-  onOpenFile: (fileId: string, mode: 'preview' | 'download') => void
-  onRename: (file: UploadedFileRecord) => void
-  onMove: (file: UploadedFileRecord) => void
+  onOpenFile?: (fileId: string, mode: 'preview' | 'download') => void
+  onRename?: (file: UploadedFileRecord) => void
+  onMove?: (file: UploadedFileRecord) => void
+  onTrash?: (file: UploadedFileRecord) => void
+  onRestore?: (file: UploadedFileRecord) => void
+  onDeleteForever?: (file: UploadedFileRecord) => void
 }) {
+  const canOpen = Boolean(onOpenFile)
+  const canRename = Boolean(onRename)
+  const canMove = Boolean(onMove)
+  const canTrash = Boolean(onTrash)
+  const canRestore = Boolean(onRestore)
+  const canDeleteForever = Boolean(onDeleteForever)
+  const hasBaseActions = canOpen || canRename || canMove
+  const hasTrashAction = canTrash
+  const hasAnyAction = hasBaseActions || hasTrashAction || canRestore || canDeleteForever
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <button
           type="button"
           className="group flex h-40 flex-col items-center justify-center gap-3 border p-4 text-left transition hover:bg-muted/40"
-          onDoubleClick={() => onOpenFile(file.id, 'preview')}
+          onDoubleClick={() => onOpenFile?.(file.id, 'preview')}
         >
           {resolveFileIcon(file)}
           <NameWithTooltip value={file.fileName} />
@@ -141,17 +214,54 @@ function FileEntryCard({
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onSelect={() => onOpenFile(file.id, 'preview')}>
-          <Eye className="size-3.5" />
-          Preview
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => onOpenFile(file.id, 'download')}>
-          <ArrowDownToLine className="size-3.5" />
-          Download
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => onRename(file)}>Rename</ContextMenuItem>
-        <ContextMenuItem onSelect={() => onMove(file)}>Move To</ContextMenuItem>
+        {canOpen ? (
+          <>
+            <ContextMenuItem onSelect={() => onOpenFile?.(file.id, 'preview')}>
+              <Eye className="size-3.5" />
+              Preview
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => onOpenFile?.(file.id, 'download')}>
+              <ArrowDownToLine className="size-3.5" />
+              Download
+            </ContextMenuItem>
+          </>
+        ) : null}
+
+        {canRename || canMove ? (
+          <>
+            {canOpen ? <ContextMenuSeparator /> : null}
+            {canRename ? <ContextMenuItem onSelect={() => onRename?.(file)}>Rename</ContextMenuItem> : null}
+            {canMove ? <ContextMenuItem onSelect={() => onMove?.(file)}>Move To</ContextMenuItem> : null}
+          </>
+        ) : null}
+
+        {canTrash ? (
+          <>
+            {hasBaseActions ? <ContextMenuSeparator /> : null}
+            <ContextMenuItem variant="destructive" onSelect={() => onTrash?.(file)}>
+              <Trash2Icon className="size-3.5" />
+              Move to Recycle Bin
+            </ContextMenuItem>
+          </>
+        ) : null}
+
+        {canRestore ? (
+          <>
+            {hasBaseActions || hasTrashAction ? <ContextMenuSeparator /> : null}
+            <ContextMenuItem onSelect={() => onRestore?.(file)}>Restore</ContextMenuItem>
+          </>
+        ) : null}
+
+        {canDeleteForever ? (
+          <>
+            {hasBaseActions || hasTrashAction || canRestore ? <ContextMenuSeparator /> : null}
+            <ContextMenuItem variant="destructive" onSelect={() => onDeleteForever?.(file)}>
+              Delete Forever
+            </ContextMenuItem>
+          </>
+        ) : null}
+
+        {!hasAnyAction ? <ContextMenuItem disabled>No actions available</ContextMenuItem> : null}
       </ContextMenuContent>
     </ContextMenu>
   )
@@ -165,12 +275,19 @@ export function UploadEntryGrid({
   onRenameFile,
   onMoveFile,
   onRenameFolder,
-  onMoveFolder
+  onMoveFolder,
+  onTrashFile,
+  onTrashFolder,
+  onRestoreFile,
+  onDeleteForeverFile,
+  onRestoreFolder,
+  onDeleteForeverFolder,
+  emptyMessage = 'This folder is empty'
 }: UploadEntryGridProps) {
   if (folders.length === 0 && files.length === 0) {
     return (
       <div className="min-h-65">
-        <div className="border border-dashed p-10 text-center text-sm text-muted-foreground">This folder is empty</div>
+        <div className="border border-dashed p-10 text-center text-sm text-muted-foreground">{emptyMessage}</div>
       </div>
     )
   }
@@ -185,6 +302,9 @@ export function UploadEntryGrid({
             onNavigate={onNavigate}
             onRename={onRenameFolder}
             onMove={onMoveFolder}
+            onTrash={onTrashFolder}
+            onRestore={onRestoreFolder}
+            onDeleteForever={onDeleteForeverFolder}
           />
         ))}
 
@@ -195,6 +315,9 @@ export function UploadEntryGrid({
             onOpenFile={onOpenFile}
             onRename={onRenameFile}
             onMove={onMoveFile}
+            onTrash={onTrashFile}
+            onRestore={onRestoreFile}
+            onDeleteForever={onDeleteForeverFile}
           />
         ))}
       </div>

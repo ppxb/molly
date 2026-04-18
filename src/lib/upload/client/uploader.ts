@@ -35,7 +35,7 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
   const totalParts = shouldMultipart ? Math.max(1, Math.ceil(input.file.size / chunkSize)) : 1
   const strategy: UploadStrategy = totalParts > 1 ? 'multipart' : 'single'
 
-  input.onStageChange?.('checking', 'Checking if a file with the same name already exists...')
+  input.onStageChange?.('checking', '检查是否使用秒传')
   const searchResult = await searchFileRequest({
     query: buildSearchQuery(folderID, input.file.name),
     order_by: 'name ASC',
@@ -44,7 +44,7 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
 
   if (searchResult.items.length > 0) {
     emitProgress(input, input.file.size, input.file.size)
-    input.onStageChange?.('done', 'Existing file found, upload skipped')
+    input.onStageChange?.('done', '秒传完成')
     return {
       file: mapSearchItemToUploadedFile(searchResult.items[0], input),
       strategy: 'instant',
@@ -59,7 +59,7 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
   const firstBatchParts = buildPartInfoList(1, firstBatchEnd)
   const localModifiedAt = input.file.lastModified > 0 ? new Date(input.file.lastModified).toISOString() : undefined
 
-  input.onStageChange?.('checking', 'Creating upload session...')
+  input.onStageChange?.('checking', '创建上传会话')
   const createResult = await createWithFoldersFileRequest({
     part_info_list: firstBatchParts,
     parent_file_id: folderID,
@@ -78,7 +78,7 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
   if (createResult.rapid_upload) {
     input.onStageChange?.('finalizing', 'Rapid upload hit, finalizing...')
   } else {
-    input.onStageChange?.('uploading', 'Uploading file parts...')
+    input.onStageChange?.('uploading', '上传文件')
     const progressReporter = createMonotonicProgressReporter(input, input.file.size, 0)
     const committedBytesRef = { value: 0 }
     let nextPartNumber = 1
@@ -105,14 +105,14 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
   }
 
   raiseIfAborted(input.signal)
-  input.onStageChange?.('finalizing', 'Completing upload...')
+  input.onStageChange?.('finalizing', '分片合并')
   const completed = await completeFileRequest({
     upload_id: createResult.upload_id,
     file_id: createResult.file_id
   })
 
   emitProgress(input, input.file.size, input.file.size)
-  input.onStageChange?.('done', 'Upload completed')
+  input.onStageChange?.('done', '上传完成')
   return {
     file: mapCompletedFileToUploadedFile(completed, input, strategy),
     strategy,

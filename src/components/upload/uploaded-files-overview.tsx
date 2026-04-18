@@ -19,8 +19,10 @@ interface UploadedFilesOverviewProps {
   onOpenFile: (fileId: string, mode: 'preview' | 'download') => void
   onRenameFile: (file: UploadedFileRecord) => void
   onMoveFile: (file: UploadedFileRecord) => void
+  onTrashFile: (file: UploadedFileRecord) => void
   onRenameFolder: (folder: UploadFolderRecord) => void
   onMoveFolder: (folder: UploadFolderRecord) => void
+  onTrashFolder: (folder: UploadFolderRecord) => void
   onCreateFolder: () => void
   onUploadFiles?: () => void
 }
@@ -36,8 +38,10 @@ export function UploadedFilesOverview({
   onOpenFile,
   onRenameFile,
   onMoveFile,
+  onTrashFile,
   onRenameFolder,
   onMoveFolder,
+  onTrashFolder,
   onCreateFolder,
   onUploadFiles
 }: UploadedFilesOverviewProps) {
@@ -70,8 +74,10 @@ export function UploadedFilesOverview({
                   onOpenFile={onOpenFile}
                   onRenameFile={onRenameFile}
                   onMoveFile={onMoveFile}
+                  onTrashFile={onTrashFile}
                   onRenameFolder={onRenameFolder}
                   onMoveFolder={onMoveFolder}
+                  onTrashFolder={onTrashFolder}
                 />
               </div>
             </ContextMenuTrigger>

@@ -1,6 +1,7 @@
 import type {
   FileAccessUrlResponse,
   UploadBatchRequest,
+  UploadBatchResponseItem,
   UploadBatchResponse,
   UploadBreadcrumbItem,
   UploadEntriesResponse,
@@ -23,9 +24,159 @@ function resolveAPIBaseURL() {
 const API_BASE_URL = resolveAPIBaseURL()
 
 interface APIErrorBody {
+  code?: unknown
+  message?: unknown
+  request_id?: unknown
+  requestId?: unknown
+  body?: unknown
+  error?: unknown
+  data?: unknown
+}
+
+interface ParsedAPIError {
   code?: string
   message?: string
-  request_id?: string
+  requestId?: string
+}
+
+interface CreateAPIRequestErrorInput {
+  status: number
+  path: string
+  payload: unknown
+  fallbackMessage: string
+}
+
+function asRecord(input: unknown): Record<string, unknown> | null {
+  if (!input || typeof input !== 'object') {
+    return null
+  }
+  return input as Record<string, unknown>
+}
+
+function readStringValue(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const normalized = value.trim()
+  return normalized.length > 0 ? normalized : undefined
+}
+
+function parseErrorRecord(record: Record<string, unknown> | null): ParsedAPIError {
+  if (!record) {
+    return {}
+  }
+
+  const body = record as APIErrorBody
+  return {
+    code: readStringValue(body.code),
+    message: readStringValue(body.message),
+    requestId: readStringValue(body.request_id) ?? readStringValue(body.requestId)
+  }
+}
+
+function parseAPIErrorPayload(payload: unknown): ParsedAPIError {
+  if (typeof payload === 'string') {
+    return {
+      message: readStringValue(payload)
+    }
+  }
+
+  const root = asRecord(payload)
+  if (!root) {
+    return {}
+  }
+
+  const rootParsed = parseErrorRecord(root)
+  if (rootParsed.code || rootParsed.message || rootParsed.requestId) {
+    return rootParsed
+  }
+
+  const wrappers: unknown[] = [root['body'], root['error'], root['data']]
+  for (const wrapper of wrappers) {
+    const parsed = parseErrorRecord(asRecord(wrapper))
+    if (parsed.code || parsed.message || parsed.requestId) {
+      return parsed
+    }
+  }
+
+  return {}
+}
+
+export class APIRequestError extends Error {
+  readonly status: number
+  readonly code?: string
+  readonly requestId?: string
+  readonly path: string
+  readonly details: unknown
+
+  constructor(input: {
+    status: number
+    message: string
+    path: string
+    details: unknown
+    code?: string
+    requestId?: string
+  }) {
+    const renderedMessage = input.requestId ? `${input.message} (request_id: ${input.requestId})` : input.message
+    super(renderedMessage)
+    this.name = 'APIRequestError'
+    this.status = input.status
+    this.code = input.code
+    this.requestId = input.requestId
+    this.path = input.path
+    this.details = input.details
+  }
+}
+
+export function createAPIRequestError(input: CreateAPIRequestErrorInput): APIRequestError {
+  const parsed = parseAPIErrorPayload(input.payload)
+  const message = parsed.message ?? input.fallbackMessage
+
+  return new APIRequestError({
+    status: input.status,
+    path: input.path,
+    details: input.payload,
+    message,
+    code: parsed.code,
+    requestId: parsed.requestId
+  })
+}
+
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof APIRequestError) {
+    return error.message
+  }
+
+  if (error instanceof Error) {
+    const normalized = error.message.trim()
+    return normalized.length > 0 ? normalized : fallback
+  }
+
+  if (typeof error === 'string') {
+    const normalized = error.trim()
+    return normalized.length > 0 ? normalized : fallback
+  }
+
+  return fallback
+}
+
+export function createBatchItemError(item: UploadBatchResponseItem | undefined, fallbackMessage: string) {
+  if (!item) {
+    return createAPIRequestError({
+      status: 500,
+      path: '/v1/batch',
+      payload: null,
+      fallbackMessage
+    })
+  }
+
+  return createAPIRequestError({
+    status: item.status,
+    path: '/v1/batch',
+    payload: item.body,
+    fallbackMessage
+  })
 }
 
 export interface FileSearchItem {
@@ -80,6 +231,7 @@ export interface FileGetUploadURLResponse {
 export interface FileListItem {
   category?: string
   content_hash?: string
+  file_extension?: string
   created_at: string
   drive_id: string
   file_id: string
@@ -200,14 +352,53 @@ export interface FileGetLatestAsyncTaskResponse {
   total_consumed_process: number
 }
 
+export interface RecycleBinListItem {
+  name: string
+  type: 'file' | 'folder'
+  hidden: boolean
+  status: string
+  starred: boolean
+  parent_file_id: string
+  drive_id: string
+  file_id: string
+  encrypt_mode: string
+  domain_id: string
+  created_at: string
+  updated_at: string
+  trashed_at: string
+  gmt_expired: string
+  category?: string
+  url?: string
+  size?: number
+  file_extension?: string
+  content_hash?: string
+  content_hash_name?: string
+  punish_flag?: number
+}
+
+export interface RecycleBinListResponse {
+  items: RecycleBinListItem[]
+  next_marker: string
+}
+
 async function requestJSON<T>(path: string, body: unknown = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  })
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    })
+  } catch (error) {
+    throw createAPIRequestError({
+      status: 0,
+      path,
+      payload: error,
+      fallbackMessage: 'Network request failed'
+    })
+  }
 
   const raw = await response.text()
   let payload: unknown = null
@@ -220,10 +411,12 @@ async function requestJSON<T>(path: string, body: unknown = {}) {
   }
 
   if (!response.ok) {
-    const errorBody = (payload && typeof payload === 'object' ? payload : null) as APIErrorBody | null
-    const baseMessage = errorBody?.message || `Request failed with status ${response.status}`
-    const requestID = errorBody?.request_id
-    throw new Error(requestID ? `${baseMessage} (request_id: ${requestID})` : baseMessage)
+    throw createAPIRequestError({
+      status: response.status,
+      path,
+      payload,
+      fallbackMessage: `Request failed with status ${response.status}`
+    })
   }
 
   return payload as T
@@ -289,7 +482,7 @@ function mapFileItem(item: FileListItem, currentPath: string): UploadedFileRecor
   return {
     id: item.file_id,
     fileName,
-    fileExtension: inferFileExtension(fileName),
+    fileExtension: item.file_extension || inferFileExtension(fileName),
     folderId: item.parent_file_id,
     folderPath: currentPath,
     contentType: item.mime_type || 'application/octet-stream',
@@ -464,4 +657,32 @@ export function uploadBatchRequest(input: UploadBatchRequest) {
 
 export function getFileAccessUrlRequest(input: { fileId: string; mode: 'preview' | 'download' }) {
   return requestJSON<FileAccessUrlResponse>('/v1/file/get_access_url', input)
+}
+
+export function recycleBinTrashRequest(input: { drive_id?: string; file_id: string }) {
+  return requestJSON<null>('/v1/recyclebin/trash', input)
+}
+
+export function recycleBinRestoreRequest(input: { drive_id?: string; file_id: string }) {
+  return requestJSON<null>('/v1/recyclebin/restore', input)
+}
+
+export function recycleBinDeleteRequest(input: { drive_id?: string; file_id: string }) {
+  return requestJSON<null>('/v1/file/delete', input)
+}
+
+export function listRecycleBinRequest(input?: {
+  drive_id?: string
+  limit?: number
+  order_by?: string
+  order_direction?: 'ASC' | 'DESC'
+  marker?: string
+}) {
+  return requestJSON<RecycleBinListResponse>('/v1/recyclebin/list', {
+    drive_id: input?.drive_id,
+    limit: input?.limit ?? 20,
+    order_by: input?.order_by ?? 'name',
+    order_direction: input?.order_direction ?? 'DESC',
+    marker: input?.marker
+  })
 }

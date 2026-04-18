@@ -13,6 +13,7 @@ import {
   createTaskFingerprint,
   createTaskFromFile
 } from '@/components/upload/hooks/upload-queue/task-factory'
+import { getErrorMessage } from '@/lib/upload/client/api'
 import { uploadRuntimeConfig } from '@/lib/upload/client/runtime-config'
 import { uploadFile } from '@/lib/upload/client/uploader'
 import { normalizeFolderPath } from '@/lib/upload/path'
@@ -30,6 +31,8 @@ interface AddFilesOptions {
 }
 
 type AbortIntent = 'pause' | 'cancel'
+const SPEED_SAMPLE_INTERVAL_MS = 250
+const SPEED_SMOOTHING_WEIGHT = 0.25
 
 export function useUploadQueue(options: UseUploadQueueOptions = {}) {
   const [tasks, setTasks] = useState<UploadQueueTask[]>([])
@@ -41,6 +44,9 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
   const launchingTaskIDsRef = useRef<Set<string>>(new Set())
   const taskControllersRef = useRef<Map<string, AbortController>>(new Map())
   const taskAbortIntentRef = useRef<Map<string, AbortIntent>>(new Map())
+  const taskSpeedSampleRef = useRef<
+    Map<string, { sampledLoadedBytes: number; sampledAtMS: number; speedBytesPerSecond: number }>
+  >(new Map())
 
   useEffect(() => {
     tasksRef.current = tasks
@@ -73,6 +79,11 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
 
       const controller = new AbortController()
       taskControllersRef.current.set(taskID, controller)
+      taskSpeedSampleRef.current.set(taskID, {
+        sampledLoadedBytes: 0,
+        sampledAtMS: performance.now(),
+        speedBytesPerSecond: 0
+      })
 
       patchTask(taskID, {
         status: 'running',
@@ -80,6 +91,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         stageMessage: 'Preparing upload...',
         loadedBytes: 0,
         totalBytes: task.fileSize,
+        speedBytesPerSecond: 0,
         errorMessage: null
       })
 
@@ -99,9 +111,44 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
             })
           },
           onProgress: progress => {
+            const nowMS = performance.now()
+            const previousSample = taskSpeedSampleRef.current.get(taskID)
+
+            let speedBytesPerSecond = 0
+            if (previousSample) {
+              const deltaMS = Math.max(0, nowMS - previousSample.sampledAtMS)
+              const shouldResample = deltaMS >= SPEED_SAMPLE_INTERVAL_MS || progress.loaded >= progress.total
+
+              if (shouldResample) {
+                const deltaBytes = Math.max(0, progress.loaded - previousSample.sampledLoadedBytes)
+                const deltaSeconds = deltaMS / 1000
+                const instantSpeed = deltaSeconds > 0 ? deltaBytes / deltaSeconds : 0
+                speedBytesPerSecond =
+                  previousSample.speedBytesPerSecond > 0
+                    ? previousSample.speedBytesPerSecond * (1 - SPEED_SMOOTHING_WEIGHT) +
+                      instantSpeed * SPEED_SMOOTHING_WEIGHT
+                    : instantSpeed
+
+                taskSpeedSampleRef.current.set(taskID, {
+                  sampledLoadedBytes: progress.loaded,
+                  sampledAtMS: nowMS,
+                  speedBytesPerSecond
+                })
+              } else {
+                speedBytesPerSecond = previousSample.speedBytesPerSecond
+              }
+            } else {
+              taskSpeedSampleRef.current.set(taskID, {
+                sampledLoadedBytes: progress.loaded,
+                sampledAtMS: nowMS,
+                speedBytesPerSecond: 0
+              })
+            }
+
             patchTask(taskID, {
               loadedBytes: progress.loaded,
-              totalBytes: progress.total
+              totalBytes: progress.total,
+              speedBytesPerSecond
             })
           }
         })
@@ -115,6 +162,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
           uploadedFile: result.file,
           loadedBytes: task.fileSize,
           totalBytes: task.fileSize,
+          speedBytesPerSecond: 0,
           errorMessage: null
         })
 
@@ -122,6 +170,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
       } catch (error) {
         const isAbort = error instanceof DOMException && error.name === 'AbortError'
         const abortIntent = taskAbortIntentRef.current.get(taskID)
+        const failureMessage = getErrorMessage(error, 'Upload failed')
 
         if (isAbort && abortIntent === 'cancel') {
           return
@@ -132,6 +181,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
             status: 'paused',
             stage: 'idle',
             stageMessage: 'Paused',
+            speedBytesPerSecond: 0,
             errorMessage: null
           })
           return
@@ -140,12 +190,14 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         patchTask(taskID, {
           status: isAbort ? 'paused' : 'error',
           stage: isAbort ? 'idle' : 'error',
-          stageMessage: isAbort ? 'Paused' : error instanceof Error ? error.message : 'Upload failed',
-          errorMessage: isAbort ? null : error instanceof Error ? error.message : 'Upload failed'
+          stageMessage: isAbort ? 'Paused' : failureMessage,
+          speedBytesPerSecond: 0,
+          errorMessage: isAbort ? null : failureMessage
         })
       } finally {
         taskControllersRef.current.delete(taskID)
         taskAbortIntentRef.current.delete(taskID)
+        taskSpeedSampleRef.current.delete(taskID)
         launchingTaskIDsRef.current.delete(taskID)
       }
     },
@@ -272,6 +324,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         }
       }
 
+      taskSpeedSampleRef.current.delete(taskID)
       setTasks(previous => previous.filter(item => item.id !== taskID))
     },
     [getTaskByID]
@@ -311,6 +364,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
     launchingTaskIDsRef.current.clear()
     taskControllersRef.current.clear()
     taskAbortIntentRef.current.clear()
+    taskSpeedSampleRef.current.clear()
     setTasks([])
   }, [])
 

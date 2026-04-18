@@ -20,6 +20,10 @@ function TaskItem({ task, onCancel, onPause, onContinue }: TaskItemProps) {
   const shouldPause = task.status === 'running' || task.status === 'queued'
   const canToggle = shouldPause || task.status === 'paused' || task.status === 'error'
   const showProgress = task.status !== 'queued'
+  const statusText =
+    task.status === 'running' && task.speedBytesPerSecond > 0
+      ? `${formatBytes(task.speedBytesPerSecond)}/s`
+      : getTaskStatusText(task)
 
   return (
     <div className="border border-dashed border-foreground/12 p-3 hover:bg-foreground/2">
@@ -51,7 +55,7 @@ function TaskItem({ task, onCancel, onPause, onContinue }: TaskItemProps) {
         <span>
           {formatBytes(task.loadedBytes)} / {formatBytes(task.totalBytes)}
         </span>
-        <div className="max-w-[60%] truncate">{getTaskStatusText(task)}</div>
+        <div className="max-w-[60%] truncate">{statusText}</div>
       </div>
 
       {showProgress && (

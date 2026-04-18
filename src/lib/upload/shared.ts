@@ -63,6 +63,23 @@ export interface UploadMoveTargetsResponse {
   folders: UploadFolderRecord[]
 }
 
+export interface RecycleBinFolderRecord extends UploadFolderRecord {
+  trashedAt: string
+  expiresAt: string
+}
+
+export interface RecycleBinFileRecord extends UploadedFileRecord {
+  trashedAt: string
+  expiresAt: string
+  recycleURL: string
+}
+
+export interface RecycleBinEntriesResponse {
+  folders: RecycleBinFolderRecord[]
+  files: RecycleBinFileRecord[]
+  nextMarker: string
+}
+
 export interface UploadBatchActionRequest {
   drive_id?: string
   file_id: string

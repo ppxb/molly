@@ -2,7 +2,65 @@ import { useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 
 import { useUploadBrowserStore } from '@/components/upload/stores/upload-browser-store'
-import { listUploadEntriesRequest } from '@/lib/upload/client/api'
+import { getErrorMessage, listUploadEntriesRequest } from '@/lib/upload/client/api'
+import type { UploadBreadcrumbItem } from '@/lib/upload/shared'
+
+function normalizeFolderID(folderId: string) {
+  const normalized = folderId.trim()
+  return normalized.length > 0 ? normalized : 'root'
+}
+
+function resolveOptimisticLocation(input: {
+  nextFolderId: string
+  currentPath: string
+  breadcrumbs: UploadBreadcrumbItem[]
+  folderLookup: Map<string, { id: string; name: string; path: string }>
+}) {
+  const { nextFolderId, currentPath, breadcrumbs, folderLookup } = input
+
+  if (nextFolderId === 'root') {
+    return {
+      path: '',
+      breadcrumbs: [
+        {
+          id: 'root',
+          label: 'root',
+          path: ''
+        }
+      ] satisfies UploadBreadcrumbItem[]
+    }
+  }
+
+  const breadcrumbIndex = breadcrumbs.findIndex(item => item.id === nextFolderId)
+  if (breadcrumbIndex >= 0) {
+    const nextBreadcrumbs = breadcrumbs.slice(0, breadcrumbIndex + 1)
+    return {
+      path: nextBreadcrumbs[nextBreadcrumbs.length - 1]?.path ?? '',
+      breadcrumbs: nextBreadcrumbs
+    }
+  }
+
+  const folder = folderLookup.get(nextFolderId)
+  if (folder) {
+    const deduped = breadcrumbs.filter(item => item.id !== nextFolderId)
+    return {
+      path: folder.path,
+      breadcrumbs: [
+        ...deduped,
+        {
+          id: folder.id,
+          label: folder.name,
+          path: folder.path
+        }
+      ]
+    }
+  }
+
+  return {
+    path: currentPath,
+    breadcrumbs
+  }
+}
 
 export function useUploadBrowserEntries() {
   const currentFolderId = useUploadBrowserStore(state => state.currentFolderId)
@@ -13,13 +71,13 @@ export function useUploadBrowserEntries() {
   const isLoadingEntries = useUploadBrowserStore(state => state.isLoadingEntries)
   const isPanelVisible = useUploadBrowserStore(state => state.isPanelVisible)
 
-  const setCurrentFolderId = useUploadBrowserStore(state => state.setCurrentFolderId)
   const setEntries = useUploadBrowserStore(state => state.setEntries)
   const setIsLoadingEntries = useUploadBrowserStore(state => state.setIsLoadingEntries)
   const setPanelVisible = useUploadBrowserStore(state => state.setPanelVisible)
 
   const currentFolderIdRef = useRef(currentFolderId)
   const currentPathRef = useRef(currentPath)
+  const lastLoadRequestRef = useRef(0)
 
   useEffect(() => {
     currentFolderIdRef.current = currentFolderId
@@ -31,9 +89,17 @@ export function useUploadBrowserEntries() {
 
   const loadEntries = useCallback(
     async (folderId: string) => {
+      const targetFolderId = normalizeFolderID(folderId)
+      const requestID = lastLoadRequestRef.current + 1
+      lastLoadRequestRef.current = requestID
+
       setIsLoadingEntries(true)
       try {
-        const data = await listUploadEntriesRequest(folderId)
+        const data = await listUploadEntriesRequest(targetFolderId)
+        if (requestID !== lastLoadRequestRef.current) {
+          return
+        }
+
         setEntries({
           folderId: data.folderId,
           path: data.path,
@@ -42,12 +108,54 @@ export function useUploadBrowserEntries() {
           folders: data.folders
         })
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to load folder contents')
+        if (requestID !== lastLoadRequestRef.current) {
+          return
+        }
+        toast.error(getErrorMessage(error, 'Failed to load folder contents'))
       } finally {
-        setIsLoadingEntries(false)
+        if (requestID === lastLoadRequestRef.current) {
+          setIsLoadingEntries(false)
+        }
       }
     },
     [setEntries, setIsLoadingEntries]
+  )
+
+  const navigateToFolder = useCallback(
+    (folderId: string) => {
+      const nextFolderId = normalizeFolderID(folderId)
+      if (nextFolderId === currentFolderId) {
+        return
+      }
+
+      const folderLookup = new Map(
+        folders.map(folder => [
+          folder.id,
+          {
+            id: folder.id,
+            name: folder.folderName,
+            path: folder.folderPath
+          }
+        ])
+      )
+
+      const optimistic = resolveOptimisticLocation({
+        nextFolderId,
+        currentPath,
+        breadcrumbs,
+        folderLookup
+      })
+
+      setEntries({
+        folderId: nextFolderId,
+        path: optimistic.path,
+        breadcrumbs: optimistic.breadcrumbs,
+        files: [],
+        folders: []
+      })
+      setIsLoadingEntries(true)
+    },
+    [breadcrumbs, currentFolderId, currentPath, folders, setEntries, setIsLoadingEntries]
   )
 
   const refreshCurrentPath = useCallback(() => {
@@ -62,7 +170,7 @@ export function useUploadBrowserEntries() {
     files,
     isLoadingEntries,
     isPanelVisible,
-    setCurrentFolderId,
+    setCurrentFolderId: navigateToFolder,
     setPanelVisible,
     currentFolderIdRef,
     currentPathRef,

@@ -16,6 +16,7 @@ export interface UploadQueueTask {
   stageMessage: string
   loadedBytes: number
   totalBytes: number
+  speedBytesPerSecond: number
   percent: number
   strategy: UploadStrategy | 'pending'
   instantUpload: boolean
@@ -30,5 +31,6 @@ export interface UploadQueueOverview {
   queuedTasks: number
   doneTasks: number
   pausedTasks: number
+  totalSpeedBytesPerSecond: number
   overallStatusText: string
 }

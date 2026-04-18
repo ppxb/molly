@@ -1,21 +1,30 @@
-import { type ChangeEvent, useCallback, useEffect, useRef } from 'react'
+import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { FolderIcon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { UploadFabMenu } from '@/components/upload-fab-menu'
 import { CreateFolderDialog } from '@/components/upload/create-folder-dialog'
+import { DeleteForeverDialog } from '@/components/upload/delete-forever-dialog'
 import { MoveEntryDialog } from '@/components/upload/move-entry-dialog'
 import { RenameEntryDialog } from '@/components/upload/rename-entry-dialog'
+import { TrashEntryDialog } from '@/components/upload/trash-entry-dialog'
 import { UploadFloatingPanel } from '@/components/upload-floating-panel'
 import { useUploadBrowserEntries } from '@/components/upload/hooks/use-upload-browser-entries'
 import { useUploadEntryActions } from '@/components/upload/hooks/use-upload-entry-actions'
 import { useUploadQueue } from '@/components/upload/hooks/use-upload-queue'
+import { useUploadRecycleBinActions } from '@/components/upload/hooks/use-upload-recyclebin-actions'
+import { useUploadRecycleBinEntries } from '@/components/upload/hooks/use-upload-recyclebin-entries'
+import { UploadRecycleBinOverview } from '@/components/upload/upload-recyclebin-overview'
 import { UploadBrowserStoreProvider } from '@/components/upload/stores/upload-browser-store'
 import { UploadedFilesOverview } from '@/components/upload/uploaded-files-overview'
-import { getFileAccessUrlRequest } from '@/lib/upload/client/api'
+import { getErrorMessage, getFileAccessUrlRequest } from '@/lib/upload/client/api'
 import { scheduleHashWorkerPrewarm } from '@/lib/upload/client/hash'
+import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '../toggle-theme'
 
 function UploadDashboardContent() {
+  const [activeView, setActiveView] = useState<'files' | 'recyclebin'>('files')
+
   const {
     currentFolderId,
     currentPath,
@@ -31,6 +40,27 @@ function UploadDashboardContent() {
     loadEntries,
     refreshCurrentPath
   } = useUploadBrowserEntries()
+  const {
+    folders: recycleFolders,
+    files: recycleFiles,
+    isLoadingRecycleBin,
+    loadRecycleBinEntries,
+    removeEntryOptimistic
+  } = useUploadRecycleBinEntries()
+  const {
+    isRestoring,
+    isDeletingForever,
+    deleteForeverTarget,
+    onRestoreFile,
+    onRestoreFolder,
+    onDeleteForeverFile,
+    onDeleteForeverFolder,
+    submitDeleteForever,
+    onDeleteForeverDialogOpenChange
+  } = useUploadRecycleBinActions({
+    refresh: loadRecycleBinEntries,
+    removeEntryOptimistic
+  })
 
   const quickUploadInputRef = useRef<HTMLInputElement>(null)
 
@@ -71,7 +101,13 @@ function UploadDashboardContent() {
     submitMove,
     onMoveDialogOpenChange,
     onMoveFile,
-    onMoveFolder
+    onMoveFolder,
+    trashTarget,
+    isTrashing,
+    submitTrash,
+    onTrashDialogOpenChange,
+    onTrashFile,
+    onTrashFolder
   } = useUploadEntryActions({
     currentFolderId,
     currentFolderIdRef,
@@ -79,8 +115,18 @@ function UploadDashboardContent() {
   })
 
   useEffect(() => {
+    if (activeView !== 'files') {
+      return
+    }
     void loadEntries(currentFolderId)
-  }, [currentFolderId, loadEntries])
+  }, [activeView, currentFolderId, loadEntries])
+
+  useEffect(() => {
+    if (activeView !== 'recyclebin') {
+      return
+    }
+    void loadRecycleBinEntries()
+  }, [activeView, loadRecycleBinEntries])
 
   useEffect(() => {
     scheduleHashWorkerPrewarm()
@@ -100,7 +146,7 @@ function UploadDashboardContent() {
       })
       window.open(data.url, '_blank', 'noopener,noreferrer')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to open file')
+      toast.error(getErrorMessage(error, 'Failed to open file'))
     }
   }, [])
 
@@ -123,64 +169,122 @@ function UploadDashboardContent() {
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
       <input ref={quickUploadInputRef} type="file" multiple className="hidden" onChange={onQuickUploadChange} />
       <ThemeToggle />
+      <div className="mb-4 flex items-center gap-2">
+        <Button
+          type="button"
+          variant={activeView === 'files' ? 'default' : 'outline'}
+          onClick={() => setActiveView('files')}
+        >
+          <FolderIcon className="size-4" />
+          My Files
+        </Button>
+        <Button
+          type="button"
+          variant={activeView === 'recyclebin' ? 'default' : 'outline'}
+          onClick={() => setActiveView('recyclebin')}
+        >
+          <Trash2Icon className="size-4" />
+          Recycle Bin
+        </Button>
+      </div>
 
-      <UploadedFilesOverview
-        currentFolderId={currentFolderId}
-        breadcrumbs={breadcrumbs}
-        folders={folders}
-        files={files}
-        isLoading={isLoadingEntries}
-        onRefresh={refreshCurrentPath}
-        onNavigate={setCurrentFolderId}
-        onOpenFile={openFileURL}
-        onUploadFiles={() => quickUploadInputRef.current?.click()}
-        onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
-        onRenameFile={onRenameFile}
-        onMoveFile={onMoveFile}
-        onRenameFolder={onRenameFolder}
-        onMoveFolder={onMoveFolder}
-      />
+      {activeView === 'files' ? (
+        <>
+          <UploadedFilesOverview
+            currentFolderId={currentFolderId}
+            breadcrumbs={breadcrumbs}
+            folders={folders}
+            files={files}
+            isLoading={isLoadingEntries}
+            onRefresh={refreshCurrentPath}
+            onNavigate={setCurrentFolderId}
+            onOpenFile={openFileURL}
+            onUploadFiles={() => quickUploadInputRef.current?.click()}
+            onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
+            onRenameFile={onRenameFile}
+            onMoveFile={onMoveFile}
+            onTrashFile={onTrashFile}
+            onRenameFolder={onRenameFolder}
+            onMoveFolder={onMoveFolder}
+            onTrashFolder={onTrashFolder}
+          />
 
-      <UploadFabMenu
-        currentPath={currentPath}
-        onSelectFiles={selectedFiles => {
-          addFiles(selectedFiles, {
-            targetFolderId: currentFolderId,
-            targetFolderPath: currentPath
-          })
-          setPanelVisible(true)
-        }}
-        onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
-      />
+          <UploadFabMenu
+            currentPath={currentPath}
+            onSelectFiles={selectedFiles => {
+              addFiles(selectedFiles, {
+                targetFolderId: currentFolderId,
+                targetFolderPath: currentPath
+              })
+              setPanelVisible(true)
+            }}
+            onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
+          />
 
-      <CreateFolderDialog
-        open={isCreateFolderDialogOpen}
-        currentPath={currentPath}
-        isSubmitting={isCreatingFolder}
-        onOpenChange={setIsCreateFolderDialogOpen}
-        onConfirm={createFolder}
-      />
+          <CreateFolderDialog
+            open={isCreateFolderDialogOpen}
+            currentPath={currentPath}
+            isSubmitting={isCreatingFolder}
+            onOpenChange={setIsCreateFolderDialogOpen}
+            onConfirm={createFolder}
+          />
 
-      <RenameEntryDialog
-        open={renameTarget !== null}
-        type={renameTarget?.type ?? 'file'}
-        currentName={renameTarget?.name ?? ''}
-        isSubmitting={isRenaming}
-        onOpenChange={onRenameDialogOpenChange}
-        onConfirm={submitRename}
-      />
+          <RenameEntryDialog
+            open={renameTarget !== null}
+            type={renameTarget?.type ?? 'file'}
+            currentName={renameTarget?.name ?? ''}
+            isSubmitting={isRenaming}
+            onOpenChange={onRenameDialogOpenChange}
+            onConfirm={submitRename}
+          />
 
-      <MoveEntryDialog
-        open={moveTarget !== null}
-        type={moveTarget?.type ?? 'file'}
-        name={moveTarget?.name ?? ''}
-        initialTargetFolderId={moveTarget?.initialTargetFolderId ?? 'root'}
-        folders={moveTargetFolders}
-        isLoadingTargets={isLoadingMoveTargets}
-        isSubmitting={isMoving}
-        onOpenChange={onMoveDialogOpenChange}
-        onConfirm={submitMove}
-      />
+          <MoveEntryDialog
+            open={moveTarget !== null}
+            type={moveTarget?.type ?? 'file'}
+            name={moveTarget?.name ?? ''}
+            initialTargetFolderId={moveTarget?.initialTargetFolderId ?? 'root'}
+            folders={moveTargetFolders}
+            isLoadingTargets={isLoadingMoveTargets}
+            isSubmitting={isMoving}
+            onOpenChange={onMoveDialogOpenChange}
+            onConfirm={submitMove}
+          />
+
+          <TrashEntryDialog
+            open={trashTarget !== null}
+            type={trashTarget?.type ?? 'file'}
+            name={trashTarget?.name ?? ''}
+            isSubmitting={isTrashing}
+            onOpenChange={onTrashDialogOpenChange}
+            onConfirm={submitTrash}
+          />
+        </>
+      ) : (
+        <>
+          <UploadRecycleBinOverview
+            folders={recycleFolders}
+            files={recycleFiles}
+            isLoading={isLoadingRecycleBin}
+            isRestoring={isRestoring}
+            onRefresh={() => {
+              void loadRecycleBinEntries()
+            }}
+            onRestoreFile={onRestoreFile}
+            onRestoreFolder={onRestoreFolder}
+            onDeleteForeverFile={onDeleteForeverFile}
+            onDeleteForeverFolder={onDeleteForeverFolder}
+          />
+
+          <DeleteForeverDialog
+            open={deleteForeverTarget !== null}
+            type={deleteForeverTarget?.type ?? 'file'}
+            name={deleteForeverTarget?.name ?? ''}
+            isSubmitting={isDeletingForever}
+            onOpenChange={onDeleteForeverDialogOpenChange}
+            onConfirm={submitDeleteForever}
+          />
+        </>
+      )}
 
       {isPanelVisible ? (
         <UploadFloatingPanel
