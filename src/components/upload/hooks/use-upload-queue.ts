@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
+import { uploadRuntimeConfig } from '@/lib/upload/client/runtime-config'
 import { uploadFile } from '@/lib/upload/client/uploader'
 import { normalizeFolderPath } from '@/lib/upload/path'
 import { DEFAULT_MULTIPART_CHUNK_SIZE, DEFAULT_MULTIPART_THRESHOLD } from '@/lib/upload/shared'
@@ -154,8 +155,9 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
           folderId: task.folderId,
           folderPath: task.folderPath,
           signal: controller.signal,
-          multipartThreshold: DEFAULT_MULTIPART_THRESHOLD,
+          multipartThreshold: uploadRuntimeConfig.multipartThreshold ?? DEFAULT_MULTIPART_THRESHOLD,
           chunkSize: DEFAULT_MULTIPART_CHUNK_SIZE,
+          multipartConcurrency: uploadRuntimeConfig.multipartConcurrency,
           onStageChange: (stage, stageMessage) => {
             patchTask(taskId, {
               stage,

@@ -1,5 +1,3 @@
-'use client'
-
 import React, { useRef } from 'react'
 import { FilePlusCornerIcon, FolderPlusIcon, FolderUpIcon, PlusIcon } from 'lucide-react'
 

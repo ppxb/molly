@@ -1,5 +1,3 @@
-'use client'
-
 import { useEffect, useState } from 'react'
 import { CircleOffIcon, PauseIcon, PlayIcon, XIcon } from 'lucide-react'
 

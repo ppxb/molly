@@ -272,7 +272,7 @@ async function uploadSingleFile(
 
   input.onStageChange?.('uploading', 'Uploading file...')
   const progress = createMonotonicProgressReporter(input, input.file.size, 0)
-  await uploadBlobWithProgress({
+  const uploadResult = await uploadBlobWithProgress({
     uploadUrl: singleInit.session.uploadUrl,
     blob: input.file,
     contentType: input.file.type || 'application/octet-stream',
@@ -288,7 +288,9 @@ async function uploadSingleFile(
   input.onStageChange?.('finalizing', 'Submitting file metadata...')
   const complete = await completeSingleUploadRequest({
     sessionId: singleInit.session.sessionId,
-    fileHash
+    fileHash,
+    eTag: uploadResult.eTag,
+    size: input.file.size
   })
 
   progress.force(input.file.size)
