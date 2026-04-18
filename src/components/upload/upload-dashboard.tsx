@@ -1,5 +1,3 @@
-'use client'
-
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 

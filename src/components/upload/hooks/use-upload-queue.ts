@@ -1,5 +1,3 @@
-'use client'
-
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
