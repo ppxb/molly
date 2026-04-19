@@ -64,7 +64,7 @@ function TaskItem({ task, onCancel, onPause, onContinue }: TaskItemProps) {
   )
 }
 
-interface UploadFloatingPanelProps {
+export interface UploadFloatingPanelProps {
   tasks: UploadQueueTask[]
   overview: UploadQueueOverview
   onCancelAll: () => void

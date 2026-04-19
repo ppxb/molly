@@ -1,25 +1,20 @@
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react'
-import { FolderIcon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { UploadFabMenu } from '@/components/upload-fab-menu'
-import { ClearRecycleBinDialog } from '@/components/upload/clear-recyclebin-dialog'
-import { DeleteForeverDialog } from '@/components/upload/delete-forever-dialog'
 import { useUploadQueue } from '@/components/upload/hooks/use-upload-queue'
 import { useUploadRecycleBinActions } from '@/components/upload/hooks/use-upload-recyclebin-actions'
 import { useUploadRecycleBinEntries } from '@/components/upload/hooks/use-upload-recyclebin-entries'
-import { UploadRecycleBinOverview } from '@/components/upload/upload-recyclebin-overview'
+import { UploadDashboardTabs, type UploadDashboardView } from '@/components/upload/upload-dashboard-tabs'
+import { UploadPanelSection } from '@/components/upload/upload-panel-section'
 import { UploadBrowserStoreProvider } from '@/components/upload/stores/upload-browser-store'
-import { UploadFloatingPanel } from '@/components/upload-floating-panel'
-import { Button } from '@/components/ui/button'
-import { FileBrowser, useEntryActions, useFileBrowser } from '@/features/file-browser'
+import { FilesSection, RecycleBinSection, useEntryActions, useFileBrowser } from '@/features/file-browser'
 import { getErrorMessage, getFileAccessUrlRequest } from '@/lib/upload/client/api'
 import { scheduleHashWorkerPrewarm } from '@/lib/upload/client/hash'
 
 import { ThemeToggle } from '../toggle-theme'
 
 function UploadDashboardContent() {
-  const [activeView, setActiveView] = useState<'files' | 'recyclebin'>('files')
+  const [activeView, setActiveView] = useState<UploadDashboardView>('files')
   const quickUploadInputRef = useRef<HTMLInputElement>(null)
 
   const {
@@ -193,150 +188,115 @@ function UploadDashboardContent() {
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
       <input ref={quickUploadInputRef} type="file" multiple className="hidden" onChange={onQuickUploadChange} />
       <ThemeToggle />
-
-      <div className="mb-4 flex items-center gap-2">
-        <Button
-          type="button"
-          variant={activeView === 'files' ? 'default' : 'outline'}
-          onClick={() => setActiveView('files')}
-        >
-          <FolderIcon className="size-4" />
-          鍏ㄩ儴鏂囦欢
-        </Button>
-        <Button
-          type="button"
-          variant={activeView === 'recyclebin' ? 'default' : 'outline'}
-          onClick={() => setActiveView('recyclebin')}
-        >
-          <Trash2Icon className="size-4" />
-          鍥炴敹绔?
-        </Button>
-      </div>
+      <UploadDashboardTabs activeView={activeView} onChange={setActiveView} />
 
       {activeView === 'files' ? (
-        <>
-          <FileBrowser
-            view={{
-              currentFolderId,
-              breadcrumbs,
-              folders,
-              files,
-              isLoading: isLoadingEntries,
-              orderBy,
-              orderDirection,
-              viewMode,
-              onRefresh: refreshCurrentPath,
-              onChangeOrderBy: setListOrderBy,
-              onChangeOrderDirection: setListOrderDirection,
-              onChangeViewMode: setViewMode,
-              onNavigate: setCurrentFolderId,
-              onOpenFile: openFileURL,
-              onUploadFiles: () => quickUploadInputRef.current?.click(),
-              onCreateFolder: () => setIsCreateFolderDialogOpen(true),
-              onRenameFile,
-              onMoveFile,
-              onViewDetailsFile,
-              onTrashFile,
-              onRenameFolder,
-              onMoveFolder,
-              onViewDetailsFolder,
-              onTrashFolder
-            }}
-            dialogs={{
-              currentPath,
-              isCreateFolderDialogOpen,
-              setIsCreateFolderDialogOpen,
-              isCreatingFolder,
-              createFolder,
-              renameTarget,
-              isRenaming,
-              submitRename,
-              onRenameDialogOpenChange,
-              moveTarget,
-              moveTargetFolders,
-              isLoadingMoveTargets,
-              isMoving,
-              submitMove,
-              onMoveDialogOpenChange,
-              trashTarget,
-              isTrashing,
-              submitTrash,
-              onTrashDialogOpenChange,
-              detailsTarget,
-              isLoadingDetailsSummary,
-              folderDetailsSummary,
-              onDetailsDialogOpenChange,
-              activeNameConflict,
-              resolveActiveNameConflict
-            }}
-          />
-
-          <UploadFabMenu
-            currentPath={currentPath}
-            onSelectFiles={selectedFiles => {
-              addFiles(selectedFiles, {
-                targetFolderId: currentFolderId,
-                targetFolderPath: currentPath
-              })
-              setPanelVisible(true)
-            }}
-            onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
-          />
-        </>
-      ) : (
-        <>
-          <UploadRecycleBinOverview
-            folders={recycleFolders}
-            files={recycleFiles}
-            isLoading={isLoadingRecycleBin}
-            isRestoring={isRestoring}
-            isClearing={isClearing}
-            onRefresh={() => {
-              void loadRecycleBinEntries()
-            }}
-            onClear={onClearRecycleBin}
-            onRestoreFile={onRestoreFile}
-            onRestoreFolder={onRestoreFolder}
-            onDeleteForeverFile={onDeleteForeverFile}
-            onDeleteForeverFolder={onDeleteForeverFolder}
-          />
-
-          <DeleteForeverDialog
-            open={deleteForeverTarget !== null}
-            type={deleteForeverTarget?.type ?? 'file'}
-            name={deleteForeverTarget?.name ?? ''}
-            isSubmitting={isDeletingForever}
-            onOpenChange={onDeleteForeverDialogOpenChange}
-            onConfirm={submitDeleteForever}
-          />
-
-          <ClearRecycleBinDialog
-            open={isClearDialogOpen}
-            isSubmitting={isClearing}
-            onOpenChange={onClearDialogOpenChange}
-            onConfirm={submitClearRecycleBin}
-          />
-        </>
-      )}
-
-      {isPanelVisible ? (
-        <UploadFloatingPanel
-          tasks={tasks}
-          overview={overview}
-          onCancelAll={cancelAllTasks}
-          onPauseAll={pauseAllTasks}
-          onContinueAll={continueAllTasks}
-          onCancelTask={cancelTask}
-          onPauseTask={pauseTask}
-          onContinueTask={continueTask}
-          onRequestClose={() => {
-            if (overview.remainingTasks === 0) {
-              cancelAllTasks()
-              setPanelVisible(false)
-            }
+        <FilesSection
+          currentPath={currentPath}
+          onSelectFiles={selectedFiles => {
+            addFiles(selectedFiles, {
+              targetFolderId: currentFolderId,
+              targetFolderPath: currentPath
+            })
+            setPanelVisible(true)
+          }}
+          onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
+          browser={{
+            currentFolderId,
+            breadcrumbs,
+            folders,
+            files,
+            isLoading: isLoadingEntries,
+            orderBy,
+            orderDirection,
+            viewMode,
+            onRefresh: refreshCurrentPath,
+            onChangeOrderBy: setListOrderBy,
+            onChangeOrderDirection: setListOrderDirection,
+            onChangeViewMode: setViewMode,
+            onNavigate: setCurrentFolderId,
+            onOpenFile: openFileURL,
+            onUploadFiles: () => quickUploadInputRef.current?.click(),
+            onCreateFolder: () => setIsCreateFolderDialogOpen(true),
+            onRenameFile,
+            onMoveFile,
+            onViewDetailsFile,
+            onTrashFile,
+            onRenameFolder,
+            onMoveFolder,
+            onViewDetailsFolder,
+            onTrashFolder
+          }}
+          dialogs={{
+            currentPath,
+            isCreateFolderDialogOpen,
+            setIsCreateFolderDialogOpen,
+            isCreatingFolder,
+            createFolder,
+            renameTarget,
+            isRenaming,
+            submitRename,
+            onRenameDialogOpenChange,
+            moveTarget,
+            moveTargetFolders,
+            isLoadingMoveTargets,
+            isMoving,
+            submitMove,
+            onMoveDialogOpenChange,
+            trashTarget,
+            isTrashing,
+            submitTrash,
+            onTrashDialogOpenChange,
+            detailsTarget,
+            isLoadingDetailsSummary,
+            folderDetailsSummary,
+            onDetailsDialogOpenChange,
+            activeNameConflict,
+            resolveActiveNameConflict
           }}
         />
-      ) : null}
+      ) : (
+        <RecycleBinSection
+          folders={recycleFolders}
+          files={recycleFiles}
+          isLoading={isLoadingRecycleBin}
+          isRestoring={isRestoring}
+          isDeletingForever={isDeletingForever}
+          isClearing={isClearing}
+          isClearDialogOpen={isClearDialogOpen}
+          deleteForeverTarget={deleteForeverTarget}
+          onRefresh={() => {
+            void loadRecycleBinEntries()
+          }}
+          onClear={onClearRecycleBin}
+          onRestoreFile={onRestoreFile}
+          onRestoreFolder={onRestoreFolder}
+          onDeleteForeverFile={onDeleteForeverFile}
+          onDeleteForeverFolder={onDeleteForeverFolder}
+          onDeleteForeverDialogOpenChange={onDeleteForeverDialogOpenChange}
+          onConfirmDeleteForever={submitDeleteForever}
+          onClearDialogOpenChange={onClearDialogOpenChange}
+          onConfirmClear={submitClearRecycleBin}
+        />
+      )}
+
+      <UploadPanelSection
+        isVisible={isPanelVisible}
+        tasks={tasks}
+        overview={overview}
+        onCancelAll={cancelAllTasks}
+        onPauseAll={pauseAllTasks}
+        onContinueAll={continueAllTasks}
+        onCancelTask={cancelTask}
+        onPauseTask={pauseTask}
+        onContinueTask={continueTask}
+        onClose={() => {
+          if (overview.remainingTasks === 0) {
+            cancelAllTasks()
+            setPanelVisible(false)
+          }
+        }}
+      />
     </div>
   )
 }
