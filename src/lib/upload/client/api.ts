@@ -671,6 +671,10 @@ export function recycleBinDeleteRequest(input: { drive_id?: string; file_id: str
   return requestJSON<null>('/v1/file/delete', input)
 }
 
+export function deleteFileRequest(input: { drive_id?: string; file_id: string }) {
+  return requestJSON<null>('/v1/file/delete', input)
+}
+
 export function listRecycleBinRequest(input?: {
   drive_id?: string
   limit?: number

@@ -10,6 +10,7 @@ export interface UploadCallbacks {
   onStageChange?: (stage: UploadStage, message: string) => void
   onProgress?: (progress: UploadProgressPayload) => void
   onResumeStateChange?: (resumeState: UploadResumeState | null) => void
+  onNameConflict?: (payload: UploadNameConflictPayload) => Promise<UploadNameConflictAction> | UploadNameConflictAction
 }
 
 export interface UploadResumeState {
@@ -18,6 +19,15 @@ export interface UploadResumeState {
   chunkSize: number
   totalParts: number
   completedPartNumbers: number[]
+}
+
+export type UploadNameConflictAction = 'skip' | 'overwrite' | 'keep_both'
+
+export interface UploadNameConflictPayload {
+  fileName: string
+  folderId: string
+  existingFileId: string
+  existingFileName: string
 }
 
 export interface UploadFileInput extends UploadCallbacks {

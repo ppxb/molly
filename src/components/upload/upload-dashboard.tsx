@@ -15,6 +15,7 @@ import { useUploadQueue } from '@/components/upload/hooks/use-upload-queue'
 import { useUploadRecycleBinActions } from '@/components/upload/hooks/use-upload-recyclebin-actions'
 import { useUploadRecycleBinEntries } from '@/components/upload/hooks/use-upload-recyclebin-entries'
 import { UploadRecycleBinOverview } from '@/components/upload/upload-recyclebin-overview'
+import { UploadNameConflictDialog } from '@/components/upload/upload-name-conflict-dialog'
 import { UploadBrowserStoreProvider } from '@/components/upload/stores/upload-browser-store'
 import { UploadedFilesOverview } from '@/components/upload/uploaded-files-overview'
 import { getErrorMessage, getFileAccessUrlRequest } from '@/lib/upload/client/api'
@@ -73,7 +74,9 @@ function UploadDashboardContent() {
     continueTask,
     cancelAllTasks,
     pauseAllTasks,
-    continueAllTasks
+    continueAllTasks,
+    activeNameConflict,
+    resolveActiveNameConflict
   } = useUploadQueue({
     initialConcurrency: 3,
     onTaskDone: async file => {
@@ -135,7 +138,9 @@ function UploadDashboardContent() {
   useEffect(() => {
     if (tasks.length === 0) {
       setPanelVisible(false)
+      return
     }
+    setPanelVisible(true)
   }, [tasks.length, setPanelVisible])
 
   const openFileURL = useCallback(async (fileId: string, mode: 'preview' | 'download') => {
@@ -255,6 +260,17 @@ function UploadDashboardContent() {
             isSubmitting={isTrashing}
             onOpenChange={onTrashDialogOpenChange}
             onConfirm={submitTrash}
+          />
+
+          <UploadNameConflictDialog
+            open={activeNameConflict !== null}
+            fileName={activeNameConflict?.fileName ?? ''}
+            onOpenChange={open => {
+              if (!open) {
+                resolveActiveNameConflict('skip')
+              }
+            }}
+            onSelect={resolveActiveNameConflict}
           />
         </>
       ) : (

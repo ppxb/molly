@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { UploadQueueTask } from '@/components/upload/upload-queue-types'
 import { buildUploadQueueOverview } from '@/components/upload/hooks/upload-queue/overview'
+import {
+  clearPersistedQueueTasks,
+  loadPersistedQueueTasks,
+  persistQueueTasks
+} from '@/components/upload/hooks/upload-queue/persistence'
 import { pickQueuedTaskIDs } from '@/components/upload/hooks/upload-queue/scheduling'
 import {
   applyTaskPatch,
@@ -16,7 +21,11 @@ import {
 import { getErrorMessage } from '@/lib/upload/client/api'
 import { uploadRuntimeConfig } from '@/lib/upload/client/runtime-config'
 import { uploadFile } from '@/lib/upload/client/uploader'
-import type { UploadResumeState } from '@/lib/upload/client/upload/types'
+import type {
+  UploadNameConflictAction,
+  UploadNameConflictPayload,
+  UploadResumeState
+} from '@/lib/upload/client/upload/types'
 import { normalizeFolderPath } from '@/lib/upload/path'
 import { DEFAULT_MULTIPART_CHUNK_SIZE, DEFAULT_MULTIPART_THRESHOLD } from '@/lib/upload/shared'
 import type { UploadedFileRecord } from '@/lib/upload/shared'
@@ -34,6 +43,7 @@ interface AddFilesOptions {
 type AbortIntent = 'pause' | 'cancel'
 const SPEED_SAMPLE_INTERVAL_MS = 250
 const SPEED_SMOOTHING_WEIGHT = 0.25
+const QUEUE_PERSIST_INTERVAL_MS = 1200
 
 function readResumeStateFromAbortError(error: unknown) {
   if (!(error instanceof DOMException) || error.name !== 'AbortError') {
@@ -48,15 +58,77 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
   const [tasks, setTasks] = useState<UploadQueueTask[]>([])
   const [concurrency] = useState(Math.max(1, options.initialConcurrency ?? 3))
   const [isQueueActive, setIsQueueActive] = useState(false)
+  const [isQueueHydrated, setIsQueueHydrated] = useState(false)
 
   const tasksRef = useRef<UploadQueueTask[]>([])
   const onTaskDoneRef = useRef(options.onTaskDone)
   const launchingTaskIDsRef = useRef<Set<string>>(new Set())
   const taskControllersRef = useRef<Map<string, AbortController>>(new Map())
   const taskAbortIntentRef = useRef<Map<string, AbortIntent>>(new Map())
+  const nameConflictQueueRef = useRef<
+    Array<{ taskID: string; payload: UploadNameConflictPayload; resolve: (action: UploadNameConflictAction) => void }>
+  >([])
+  const activeNameConflictRef = useRef<{
+    taskID: string
+    payload: UploadNameConflictPayload
+    resolve: (action: UploadNameConflictAction) => void
+  } | null>(null)
+  const queuePersistTimerRef = useRef<number | null>(null)
   const taskSpeedSampleRef = useRef<
     Map<string, { sampledLoadedBytes: number; sampledAtMS: number; speedBytesPerSecond: number }>
   >(new Map())
+  const [activeNameConflict, setActiveNameConflict] = useState<UploadNameConflictPayload | null>(null)
+
+  useEffect(() => {
+    let active = true
+
+    void loadPersistedQueueTasks()
+      .then(restoredTasks => {
+        if (!active) {
+          return
+        }
+        if (restoredTasks.length > 0) {
+          setTasks(restoredTasks)
+        }
+      })
+      .finally(() => {
+        if (!active) {
+          return
+        }
+        setIsQueueHydrated(true)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isQueueHydrated) {
+      return
+    }
+
+    if (queuePersistTimerRef.current !== null) {
+      window.clearTimeout(queuePersistTimerRef.current)
+      queuePersistTimerRef.current = null
+    }
+
+    queuePersistTimerRef.current = window.setTimeout(() => {
+      queuePersistTimerRef.current = null
+      if (tasks.length === 0) {
+        void clearPersistedQueueTasks()
+        return
+      }
+      void persistQueueTasks(tasks)
+    }, QUEUE_PERSIST_INTERVAL_MS)
+
+    return () => {
+      if (queuePersistTimerRef.current !== null) {
+        window.clearTimeout(queuePersistTimerRef.current)
+        queuePersistTimerRef.current = null
+      }
+    }
+  }, [isQueueHydrated, tasks])
 
   useEffect(() => {
     tasksRef.current = tasks
@@ -78,6 +150,49 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
   }, [])
 
   const getTaskByID = useCallback((taskID: string) => tasksRef.current.find(task => task.id === taskID) ?? null, [])
+
+  const activateNextNameConflict = useCallback(() => {
+    if (activeNameConflictRef.current !== null) {
+      return
+    }
+
+    const next = nameConflictQueueRef.current.shift()
+    if (!next) {
+      setActiveNameConflict(null)
+      return
+    }
+
+    activeNameConflictRef.current = next
+    setActiveNameConflict(next.payload)
+  }, [])
+
+  const resolveActiveNameConflict = useCallback(
+    (action: UploadNameConflictAction) => {
+      const active = activeNameConflictRef.current
+      if (!active) {
+        return
+      }
+
+      activeNameConflictRef.current = null
+      setActiveNameConflict(null)
+      active.resolve(action)
+      activateNextNameConflict()
+    },
+    [activateNextNameConflict]
+  )
+
+  const enqueueNameConflict = useCallback(
+    (taskID: string, payload: UploadNameConflictPayload) =>
+      new Promise<UploadNameConflictAction>(resolve => {
+        nameConflictQueueRef.current.push({
+          taskID,
+          payload,
+          resolve
+        })
+        activateNextNameConflict()
+      }),
+    [activateNextNameConflict]
+  )
 
   const runTask = useCallback(
     async (taskID: string) => {
@@ -119,6 +234,13 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
             patchTask(taskID, {
               resumeState
             })
+          },
+          onNameConflict: async payload => {
+            patchTask(taskID, {
+              stage: 'checking',
+              stageMessage: 'Waiting for duplicate-file action...'
+            })
+            return enqueueNameConflict(taskID, payload)
           },
           onStageChange: (stage, stageMessage) => {
             patchTask(taskID, {
@@ -221,7 +343,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         launchingTaskIDsRef.current.delete(taskID)
       }
     },
-    [getTaskByID, patchTask]
+    [enqueueNameConflict, getTaskByID, patchTask]
   )
 
   useEffect(() => {
@@ -344,10 +466,25 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         }
       }
 
+      const activeConflict = activeNameConflictRef.current
+      if (activeConflict && activeConflict.taskID === taskID) {
+        resolveActiveNameConflict('skip')
+      } else {
+        const keptConflicts = [] as typeof nameConflictQueueRef.current
+        for (const item of nameConflictQueueRef.current) {
+          if (item.taskID === taskID) {
+            item.resolve('skip')
+            continue
+          }
+          keptConflicts.push(item)
+        }
+        nameConflictQueueRef.current = keptConflicts
+      }
+
       taskSpeedSampleRef.current.delete(taskID)
       setTasks(previous => previous.filter(item => item.id !== taskID))
     },
-    [getTaskByID]
+    [getTaskByID, resolveActiveNameConflict]
   )
 
   const continueAllTasks = useCallback(() => {
@@ -384,6 +521,15 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
     launchingTaskIDsRef.current.clear()
     taskControllersRef.current.clear()
     taskAbortIntentRef.current.clear()
+    if (activeNameConflictRef.current !== null) {
+      activeNameConflictRef.current.resolve('skip')
+      activeNameConflictRef.current = null
+    }
+    for (const item of nameConflictQueueRef.current) {
+      item.resolve('skip')
+    }
+    nameConflictQueueRef.current = []
+    setActiveNameConflict(null)
     taskSpeedSampleRef.current.clear()
     setTasks([])
   }, [])
@@ -399,6 +545,8 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
     continueTask,
     cancelAllTasks,
     pauseAllTasks,
-    continueAllTasks
+    continueAllTasks,
+    activeNameConflict,
+    resolveActiveNameConflict
   }
 }

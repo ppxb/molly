@@ -2,6 +2,7 @@ import type { FileUploadPartInfo } from '@/lib/upload/client/api'
 import {
   completeFileRequest,
   createWithFoldersFileRequest,
+  deleteFileRequest,
   getUploadURLFileRequest,
   searchFileRequest
 } from '@/lib/upload/client/api'
@@ -17,11 +18,21 @@ import { computePreHash } from '@/lib/upload/client/upload/hashing'
 import { mapCompletedFileToUploadedFile, mapSearchItemToUploadedFile } from '@/lib/upload/client/upload/mappers'
 import { uploadPartBatch } from '@/lib/upload/client/upload/multipart'
 import { createMonotonicProgressReporter, emitProgress } from '@/lib/upload/client/upload/progress'
-import type { UploadFileInput, UploadFileResult, UploadResumeState } from '@/lib/upload/client/upload/types'
+import type {
+  UploadFileInput,
+  UploadFileResult,
+  UploadNameConflictAction,
+  UploadResumeState
+} from '@/lib/upload/client/upload/types'
 import { DEFAULT_MULTIPART_THRESHOLD } from '@/lib/upload/shared'
 import type { UploadStrategy } from '@/lib/upload/shared'
 
-export type { UploadFileInput, UploadFileResult, UploadResumeState } from '@/lib/upload/client/upload/types'
+export type {
+  UploadFileInput,
+  UploadFileResult,
+  UploadNameConflictAction,
+  UploadResumeState
+} from '@/lib/upload/client/upload/types'
 
 type UploadAbortErrorWithResumeState = DOMException & { resumeState?: UploadResumeState | null }
 
@@ -92,6 +103,39 @@ function buildResumeState(
   } satisfies UploadResumeState
 }
 
+function splitFileName(fileName: string) {
+  const dot = fileName.lastIndexOf('.')
+  if (dot <= 0 || dot + 1 >= fileName.length) {
+    return {
+      baseName: fileName,
+      extension: ''
+    }
+  }
+  return {
+    baseName: fileName.slice(0, dot),
+    extension: fileName.slice(dot)
+  }
+}
+
+async function resolveKeepBothFileName(folderID: string, fileName: string) {
+  const { baseName, extension } = splitFileName(fileName)
+  const normalizedBaseName = baseName.trim() || fileName
+
+  for (let index = 1; index <= 9_999; index += 1) {
+    const candidate = `${normalizedBaseName}(${index})${extension}`
+    const searchResult = await searchFileRequest({
+      query: buildSearchQuery(folderID, candidate),
+      order_by: 'name ASC',
+      limit: 1
+    })
+    if (searchResult.items.length === 0) {
+      return candidate
+    }
+  }
+
+  throw new Error('Unable to generate a non-conflicting file name')
+}
+
 export async function uploadFile(input: UploadFileInput): Promise<UploadFileResult> {
   if (!input.file) {
     throw new Error('No file selected')
@@ -122,21 +166,46 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
       input.onResumeStateChange?.(resumeState)
       input.onStageChange?.('uploading', 'Resuming upload...')
     } else {
+      let uploadFileName = input.file.name
+      let checkNameMode: 'auto_rename' | 'refuse' = 'auto_rename'
+
       input.onStageChange?.('checking', 'Checking if a file with the same name already exists...')
       const searchResult = await searchFileRequest({
-        query: buildSearchQuery(folderID, input.file.name),
+        query: buildSearchQuery(folderID, uploadFileName),
         order_by: 'name ASC',
         limit: 1
       })
 
       if (searchResult.items.length > 0) {
-        emitProgress(input, input.file.size, input.file.size)
-        input.onResumeStateChange?.(null)
-        input.onStageChange?.('done', 'Existing file found, upload skipped')
-        return {
-          file: mapSearchItemToUploadedFile(searchResult.items[0], input),
-          strategy: 'instant',
-          instantUpload: true
+        const existingFile = searchResult.items[0]
+        const conflictAction: UploadNameConflictAction =
+          (await input.onNameConflict?.({
+            fileName: uploadFileName,
+            folderId: folderID,
+            existingFileId: existingFile.file_id,
+            existingFileName: existingFile.name
+          })) ?? 'skip'
+
+        if (conflictAction === 'skip') {
+          emitProgress(input, input.file.size, input.file.size)
+          input.onResumeStateChange?.(null)
+          input.onStageChange?.('done', 'Skipped: file with same name exists')
+          return {
+            file: mapSearchItemToUploadedFile(existingFile, input),
+            strategy: 'instant',
+            instantUpload: true
+          }
+        }
+
+        if (conflictAction === 'overwrite') {
+          input.onStageChange?.('checking', 'Removing existing file...')
+          await deleteFileRequest({
+            file_id: existingFile.file_id
+          })
+          checkNameMode = 'refuse'
+        } else {
+          uploadFileName = await resolveKeepBothFileName(folderID, uploadFileName)
+          checkNameMode = 'refuse'
         }
       }
 
@@ -149,9 +218,9 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
       const createResult = await createWithFoldersFileRequest({
         part_info_list: buildPartInfoList(1, firstBatchEnd),
         parent_file_id: folderID,
-        name: input.file.name,
+        name: uploadFileName,
         type: 'file',
-        check_name_mode: 'auto_rename',
+        check_name_mode: checkNameMode,
         size: input.file.size,
         create_scene: 'file_upload',
         device_name: 'web',
