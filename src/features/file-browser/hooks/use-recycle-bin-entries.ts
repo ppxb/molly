@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 
-import { getErrorMessage, listRecycleBinRequest, type RecycleBinListItem } from '@/lib/drive/client/api'
-import type { RecycleBinEntriesResponse, RecycleBinFileRecord, RecycleBinFolderRecord } from '@/lib/drive/shared'
+import { getErrorMessage, listRecycleBinRequest, type RecycleBinListItem } from '@/lib/drive/api'
+import type { RecycleBinEntriesResponse, RecycleBinFileRecord, RecycleBinFolderRecord } from '@/lib/drive/types'
 
 function inferFileExtension(input: { name: string; fileExtension?: string }) {
   if (input.fileExtension && input.fileExtension.trim().length > 0) {

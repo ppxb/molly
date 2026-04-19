@@ -1,8 +1,8 @@
 import { useCallback, useState, type MutableRefObject } from 'react'
 import { toast } from 'sonner'
 
-import { getErrorMessage, updateFileRequest } from '@/lib/drive/client/api'
-import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/drive/shared'
+import { getErrorMessage, updateFileRequest } from '@/lib/drive/api'
+import type { DriveFolderRecord, DriveFileRecord } from '@/lib/drive/types'
 
 import type { RenameTarget } from './types'
 
@@ -40,7 +40,7 @@ export function useRenameItemAction({ currentFolderIdRef, loadEntries }: UseRena
     [currentFolderIdRef, loadEntries, renameTarget]
   )
 
-  const onRenameFile = useCallback((file: UploadedFileRecord) => {
+  const onRenameFile = useCallback((file: DriveFileRecord) => {
     setRenameTarget({
       id: file.id,
       type: 'file',
@@ -48,7 +48,7 @@ export function useRenameItemAction({ currentFolderIdRef, loadEntries }: UseRena
     })
   }, [])
 
-  const onRenameFolder = useCallback((folder: UploadFolderRecord) => {
+  const onRenameFolder = useCallback((folder: DriveFolderRecord) => {
     setRenameTarget({
       id: folder.id,
       type: 'folder',

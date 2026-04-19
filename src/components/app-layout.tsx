@@ -5,7 +5,6 @@ import { ThemeToggle } from '@/components/toggle-theme'
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -15,7 +14,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarRail,
   SidebarSeparator,
   SidebarTrigger
 } from '@/components/ui/sidebar'
@@ -25,6 +23,7 @@ export type AppPageKey = 'files'
 interface AppLayoutProps {
   activePage: AppPageKey
   onChangePage?: (page: AppPageKey) => void
+  secondarySidebar?: ReactNode
   children: ReactNode
 }
 
@@ -35,16 +34,16 @@ const pageMeta: Record<AppPageKey, { title: string; description: string }> = {
   }
 }
 
-export function AppLayout({ activePage, onChangePage, children }: AppLayoutProps) {
+export function AppLayout({ activePage, onChangePage, secondarySidebar, children }: AppLayoutProps) {
   const currentPage = pageMeta[activePage]
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <Sidebar variant="inset" collapsible="icon">
+      <Sidebar collapsible="icon">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size="lg" isActive={true} tooltip="Molly Drive">
+              <SidebarMenuButton size="lg" isActive={true}>
                 <HardDriveIcon className="size-4" />
                 <span>Molly Drive</span>
               </SidebarMenuButton>
@@ -73,11 +72,6 @@ export function AppLayout({ activePage, onChangePage, children }: AppLayoutProps
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-
-        <SidebarFooter>
-          <div className="px-2 text-[11px] text-sidebar-foreground/60">Ctrl/Cmd + B 切换侧边栏</div>
-        </SidebarFooter>
-        <SidebarRail />
       </Sidebar>
 
       <SidebarInset>
@@ -95,7 +89,14 @@ export function AppLayout({ activePage, onChangePage, children }: AppLayoutProps
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1">{children}</div>
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          {secondarySidebar ? (
+            <aside className="hidden w-72 shrink-0 border-r border-border/70 bg-muted/20 md:block">
+              {secondarySidebar}
+            </aside>
+          ) : null}
+          <div className="min-w-0 flex-1">{children}</div>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )

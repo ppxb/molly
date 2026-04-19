@@ -6,9 +6,9 @@ import {
   getErrorMessage,
   getLatestAsyncTaskRequest,
   listMoveTargetsRequest,
-  uploadBatchRequest
-} from '@/lib/drive/client/api'
-import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/drive/shared'
+  batchFileRequest
+} from '@/lib/drive/api'
+import type { DriveFolderRecord, DriveFileRecord } from '@/lib/drive/types'
 
 import type { MoveTarget } from './types'
 
@@ -19,7 +19,7 @@ interface UseMoveItemActionInput {
 
 export function useMoveItemAction({ currentFolderIdRef, loadEntries }: UseMoveItemActionInput) {
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null)
-  const [moveTargetFolders, setMoveTargetFolders] = useState<UploadFolderRecord[]>([])
+  const [moveTargetFolders, setMoveTargetFolders] = useState<DriveFolderRecord[]>([])
   const [isLoadingMoveTargets, setIsLoadingMoveTargets] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
 
@@ -55,7 +55,7 @@ export function useMoveItemAction({ currentFolderIdRef, loadEntries }: UseMoveIt
       try {
         await getLatestAsyncTaskRequest()
 
-        const batch = await uploadBatchRequest({
+        const batch = await batchFileRequest({
           resource: 'file',
           requests: [
             {
@@ -90,7 +90,7 @@ export function useMoveItemAction({ currentFolderIdRef, loadEntries }: UseMoveIt
   )
 
   const onMoveFile = useCallback(
-    (file: UploadedFileRecord) => {
+    (file: DriveFileRecord) => {
       void openMoveDialog({
         id: file.id,
         type: 'file',
@@ -102,7 +102,7 @@ export function useMoveItemAction({ currentFolderIdRef, loadEntries }: UseMoveIt
   )
 
   const onMoveFolder = useCallback(
-    (folder: UploadFolderRecord) => {
+    (folder: DriveFolderRecord) => {
       void openMoveDialog({
         id: folder.id,
         type: 'folder',

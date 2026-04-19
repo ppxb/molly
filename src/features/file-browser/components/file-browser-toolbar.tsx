@@ -18,7 +18,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import type { FileListOrderBy } from '@/lib/drive/client/api'
+import type { FileListOrderBy } from '@/lib/drive/api'
 
 interface FileBrowserToolbarProps {
   totalCount: number
@@ -33,7 +33,7 @@ interface FileBrowserToolbarProps {
 }
 
 interface FileBrowserContextMenuActionsProps {
-  onUploadFiles?: () => void
+  onAddFiles?: () => void
   onCreateFolder: () => void
 }
 
@@ -129,10 +129,10 @@ export function FileBrowserToolbar({
   )
 }
 
-export function FileBrowserContextMenuActions({ onUploadFiles, onCreateFolder }: FileBrowserContextMenuActionsProps) {
+export function FileBrowserContextMenuActions({ onAddFiles, onCreateFolder }: FileBrowserContextMenuActionsProps) {
   return (
     <ContextMenuContent>
-      <ContextMenuItem onSelect={() => onUploadFiles?.()}>
+      <ContextMenuItem onSelect={() => onAddFiles?.()}>
         <FilePlusCornerIcon className="size-3.5" />
         Upload Files
       </ContextMenuItem>

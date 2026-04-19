@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 
-import { createFolderRequest, getErrorMessage } from '@/lib/drive/client/api'
+import { createFolderRequest, getErrorMessage } from '@/lib/drive/api'
 
 interface UseCreateFolderActionInput {
   currentFolderId: string

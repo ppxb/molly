@@ -8,14 +8,14 @@ import {
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import type { FileListOrderBy } from '@/lib/drive/client/api'
-import type { UploadBreadcrumbItem, UploadFolderRecord, UploadedFileRecord } from '@/lib/drive/shared'
+import type { FileListOrderBy } from '@/lib/drive/api'
+import type { DriveBreadcrumbItem, DriveFolderRecord, DriveFileRecord } from '@/lib/drive/types'
 
 export interface FileBrowserViewProps extends ItemActionProps {
   currentFolderId: string
-  breadcrumbs: UploadBreadcrumbItem[]
-  folders: UploadFolderRecord[]
-  files: UploadedFileRecord[]
+  breadcrumbs: DriveBreadcrumbItem[]
+  folders: DriveFolderRecord[]
+  files: DriveFileRecord[]
   isLoading: boolean
   orderBy: FileListOrderBy
   orderDirection: 'ASC' | 'DESC'
@@ -26,7 +26,7 @@ export interface FileBrowserViewProps extends ItemActionProps {
   onChangeViewMode: (value: 'grid' | 'table') => void
   onNavigate: (folderId: string) => void
   onCreateFolder: () => void
-  onUploadFiles?: () => void
+  onAddFiles?: () => void
   emptyMessage?: string
 }
 
@@ -58,7 +58,7 @@ export function FileBrowserView({
   onRestoreFolder,
   onDeleteForeverFolder,
   onCreateFolder,
-  onUploadFiles,
+  onAddFiles,
   emptyMessage = 'This folder is empty'
 }: FileBrowserViewProps) {
   return (
@@ -106,7 +106,7 @@ export function FileBrowserView({
                 />
               </div>
             </ContextMenuTrigger>
-            <FileBrowserContextMenuActions onUploadFiles={onUploadFiles} onCreateFolder={onCreateFolder} />
+            <FileBrowserContextMenuActions onAddFiles={onAddFiles} onCreateFolder={onCreateFolder} />
           </ContextMenu>
         </CardContent>
       </Card>

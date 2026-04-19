@@ -2,8 +2,8 @@ import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import type { ItemDetailsTarget, FolderDetailsSummary } from '@/features/file-browser/components/item-details-dialog'
-import { getErrorMessage, getFolderSizeInfoRequest } from '@/lib/drive/client/api'
-import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/drive/shared'
+import { getErrorMessage, getFolderSizeInfoRequest } from '@/lib/drive/api'
+import type { DriveFolderRecord, DriveFileRecord } from '@/lib/drive/types'
 
 import { toRootLocation } from './types'
 
@@ -13,7 +13,7 @@ export function useItemDetailsAction() {
   const [folderDetailsSummary, setFolderDetailsSummary] = useState<FolderDetailsSummary | null>(null)
   const detailsSummaryRequestIdRef = useRef(0)
 
-  const onViewDetailsFile = useCallback((file: UploadedFileRecord) => {
+  const onViewDetailsFile = useCallback((file: DriveFileRecord) => {
     detailsSummaryRequestIdRef.current += 1
     setFolderDetailsSummary(null)
     setIsLoadingDetailsSummary(false)
@@ -28,7 +28,7 @@ export function useItemDetailsAction() {
     })
   }, [])
 
-  const onViewDetailsFolder = useCallback((folder: UploadFolderRecord) => {
+  const onViewDetailsFolder = useCallback((folder: DriveFolderRecord) => {
     const requestId = detailsSummaryRequestIdRef.current + 1
     detailsSummaryRequestIdRef.current = requestId
 

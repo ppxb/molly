@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+
 import { useFileBrowserStore } from '@/features/file-browser/store/file-browser-store'
 
 import { useCreateFolderAction } from './item-actions/use-create-folder-action'
@@ -7,12 +9,18 @@ import { useRenameItemAction } from './item-actions/use-rename-item-action'
 import { useTrashItemAction } from './item-actions/use-trash-item-action'
 import type { UseItemActionsInput } from './item-actions/types'
 
-export function useItemActions({ currentFolderId, currentFolderIdRef, loadEntries }: UseItemActionsInput) {
+export function useItemActions({ loadEntries }: UseItemActionsInput) {
+  const currentFolderId = useFileBrowserStore(state => state.currentFolderId)
   const currentPath = useFileBrowserStore(state => state.currentPath)
   const breadcrumbs = useFileBrowserStore(state => state.breadcrumbs)
   const files = useFileBrowserStore(state => state.files)
   const folders = useFileBrowserStore(state => state.folders)
   const setEntries = useFileBrowserStore(state => state.setEntries)
+  const currentFolderIdRef = useRef(currentFolderId)
+
+  useEffect(() => {
+    currentFolderIdRef.current = currentFolderId
+  }, [currentFolderId])
 
   const createFolderAction = useCreateFolderAction({
     currentFolderId,

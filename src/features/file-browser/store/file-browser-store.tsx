@@ -2,14 +2,14 @@ import { createContext, type ReactNode, useContext, useRef } from 'react'
 import { useStore } from 'zustand'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 
-import type { UploadBreadcrumbItem, UploadedFileRecord, UploadFolderRecord } from '@/lib/drive/shared'
+import type { DriveBreadcrumbItem, DriveFileRecord, DriveFolderRecord } from '@/lib/drive/types'
 
 type FileBrowserState = {
   currentFolderId: string
   currentPath: string
-  breadcrumbs: UploadBreadcrumbItem[]
-  files: UploadedFileRecord[]
-  folders: UploadFolderRecord[]
+  breadcrumbs: DriveBreadcrumbItem[]
+  files: DriveFileRecord[]
+  folders: DriveFolderRecord[]
   isLoadingEntries: boolean
   isPanelVisible: boolean
 }
@@ -19,9 +19,9 @@ type FileBrowserActions = {
   setEntries: (entries: {
     folderId: string
     path: string
-    breadcrumbs: UploadBreadcrumbItem[]
-    files: UploadedFileRecord[]
-    folders: UploadFolderRecord[]
+    breadcrumbs: DriveBreadcrumbItem[]
+    files: DriveFileRecord[]
+    folders: DriveFolderRecord[]
   }) => void
   setIsLoadingEntries: (isLoading: boolean) => void
   setPanelVisible: (visible: boolean) => void

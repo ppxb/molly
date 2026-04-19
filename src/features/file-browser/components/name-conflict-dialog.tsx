@@ -7,16 +7,16 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import type { UploadNameConflictAction } from '@/lib/drive/client/upload/types'
+import type { NameConflictAction } from '@/lib/drive/upload/types'
 
-interface UploadNameConflictDialogProps {
+interface NameConflictDialogProps {
   open: boolean
   fileName: string
   onOpenChange: (open: boolean) => void
-  onSelect: (action: UploadNameConflictAction) => void
+  onSelect: (action: NameConflictAction) => void
 }
 
-export function UploadNameConflictDialog({ open, fileName, onOpenChange, onSelect }: UploadNameConflictDialogProps) {
+export function NameConflictDialog({ open, fileName, onOpenChange, onSelect }: NameConflictDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>

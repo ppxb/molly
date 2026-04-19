@@ -1,10 +1,10 @@
 import { type ItemActionProps, ItemGridView } from '@/features/file-browser/components/item-grid-view'
 import { ItemTableView } from '@/features/file-browser/components/item-table-view'
-import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/drive/shared'
+import type { DriveFolderRecord, DriveFileRecord } from '@/lib/drive/types'
 
 export interface ItemBrowserContentProps extends ItemActionProps {
-  folders: UploadFolderRecord[]
-  files: UploadedFileRecord[]
+  folders: DriveFolderRecord[]
+  files: DriveFileRecord[]
   viewMode?: 'grid' | 'table'
   emptyMessage?: string
 }

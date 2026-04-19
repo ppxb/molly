@@ -8,12 +8,12 @@ import {
   FolderContextMenuContent
 } from '@/features/file-browser/components/item-context-menu-content'
 import { type ItemActionProps, resolveFileIcon } from '@/features/file-browser/components/item-grid-view'
-import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/drive/shared'
+import type { DriveFolderRecord, DriveFileRecord } from '@/lib/drive/types'
 import { formatBytes, formatDateTime } from '@/lib/utils'
 
 interface ItemTableViewProps extends ItemActionProps {
-  folders: UploadFolderRecord[]
-  files: UploadedFileRecord[]
+  folders: DriveFolderRecord[]
+  files: DriveFileRecord[]
 }
 
 function ItemNameCell({ icon, value }: { icon: ReactNode; value: string }) {

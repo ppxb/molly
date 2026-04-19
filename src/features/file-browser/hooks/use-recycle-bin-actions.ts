@@ -6,8 +6,8 @@ import {
   recycleBinClearRequest,
   recycleBinDeleteRequest,
   recycleBinRestoreRequest
-} from '@/lib/drive/client/api'
-import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/drive/shared'
+} from '@/lib/drive/api'
+import type { DriveFolderRecord, DriveFileRecord } from '@/lib/drive/types'
 
 interface DeleteForeverTarget {
   id: string
@@ -15,13 +15,13 @@ interface DeleteForeverTarget {
   name: string
 }
 
-interface UseUploadRecycleBinActionsInput {
+interface UseRecycleBinActionsInput {
   refresh: () => Promise<void>
   removeItemOptimistic: (target: { id: string; type: 'file' | 'folder' }) => (() => void) | null
   clearAllOptimistic: () => () => void
 }
 
-export function useRecycleBinActions(input: UseUploadRecycleBinActionsInput) {
+export function useRecycleBinActions(input: UseRecycleBinActionsInput) {
   const { refresh, removeItemOptimistic, clearAllOptimistic } = input
   const [isRestoring, setIsRestoring] = useState(false)
   const [isDeletingForever, setIsDeletingForever] = useState(false)
@@ -53,7 +53,7 @@ export function useRecycleBinActions(input: UseUploadRecycleBinActionsInput) {
   )
 
   const onRestoreFile = useCallback(
-    (file: UploadedFileRecord) => {
+    (file: DriveFileRecord) => {
       void restoreEntry({
         id: file.id,
         type: 'file',
@@ -64,7 +64,7 @@ export function useRecycleBinActions(input: UseUploadRecycleBinActionsInput) {
   )
 
   const onRestoreFolder = useCallback(
-    (folder: UploadFolderRecord) => {
+    (folder: DriveFolderRecord) => {
       void restoreEntry({
         id: folder.id,
         type: 'folder',
@@ -74,7 +74,7 @@ export function useRecycleBinActions(input: UseUploadRecycleBinActionsInput) {
     [restoreEntry]
   )
 
-  const onDeleteForeverFile = useCallback((file: UploadedFileRecord) => {
+  const onDeleteForeverFile = useCallback((file: DriveFileRecord) => {
     setDeleteForeverTarget({
       id: file.id,
       type: 'file',
@@ -82,7 +82,7 @@ export function useRecycleBinActions(input: UseUploadRecycleBinActionsInput) {
     })
   }, [])
 
-  const onDeleteForeverFolder = useCallback((folder: UploadFolderRecord) => {
+  const onDeleteForeverFolder = useCallback((folder: DriveFolderRecord) => {
     setDeleteForeverTarget({
       id: folder.id,
       type: 'folder',

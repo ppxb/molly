@@ -7,9 +7,9 @@ import { ItemBrowserContent } from '@/features/file-browser/components/item-brow
 import type {
   RecycleBinFileRecord,
   RecycleBinFolderRecord,
-  UploadFolderRecord,
-  UploadedFileRecord
-} from '@/lib/drive/shared'
+  DriveFolderRecord,
+  DriveFileRecord
+} from '@/lib/drive/types'
 
 interface RecycleBinOverviewProps {
   folders: RecycleBinFolderRecord[]
@@ -19,10 +19,10 @@ interface RecycleBinOverviewProps {
   isClearing?: boolean
   onRefresh: () => void
   onClear: () => void
-  onRestoreFile: (file: UploadedFileRecord) => void
-  onRestoreFolder: (folder: UploadFolderRecord) => void
-  onDeleteForeverFile: (file: UploadedFileRecord) => void
-  onDeleteForeverFolder: (folder: UploadFolderRecord) => void
+  onRestoreFile: (file: DriveFileRecord) => void
+  onRestoreFolder: (folder: DriveFolderRecord) => void
+  onDeleteForeverFile: (file: DriveFileRecord) => void
+  onDeleteForeverFolder: (folder: DriveFolderRecord) => void
 }
 
 export function RecycleBinOverview({

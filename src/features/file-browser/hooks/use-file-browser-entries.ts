@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useFileBrowserStore } from '@/features/file-browser/store/file-browser-store'
-import { getErrorMessage, listUploadEntriesRequest, type FileListOrderBy } from '@/lib/drive/client/api'
-import type { UploadBreadcrumbItem, UploadedFileRecord } from '@/lib/drive/shared'
+import { getErrorMessage, listFileEntriesRequest, type FileListOrderBy } from '@/lib/drive/api'
+import type { DriveBreadcrumbItem, DriveFileRecord } from '@/lib/drive/types'
 
 function normalizeFolderID(folderId: string) {
   const normalized = folderId.trim()
@@ -15,7 +15,7 @@ type ListOrderDirection = 'ASC' | 'DESC'
 function resolveOptimisticLocation(input: {
   nextFolderId: string
   currentPath: string
-  breadcrumbs: UploadBreadcrumbItem[]
+  breadcrumbs: DriveBreadcrumbItem[]
   folderLookup: Map<string, { id: string; name: string; path: string }>
 }) {
   const { nextFolderId, currentPath, breadcrumbs, folderLookup } = input
@@ -29,7 +29,7 @@ function resolveOptimisticLocation(input: {
           label: 'root',
           path: ''
         }
-      ] satisfies UploadBreadcrumbItem[]
+      ] satisfies DriveBreadcrumbItem[]
     }
   }
 
@@ -124,7 +124,7 @@ export function useFileBrowserEntries() {
 
       setIsLoadingEntries(true)
       try {
-        const data = await listUploadEntriesRequest(targetFolderId, {
+        const data = await listFileEntriesRequest(targetFolderId, {
           order_by: orderByRef.current,
           order_direction: orderDirectionRef.current
         })
@@ -219,7 +219,7 @@ export function useFileBrowserEntries() {
   )
 
   const upsertFileInCurrentFolder = useCallback(
-    (file: UploadedFileRecord) => {
+    (file: DriveFileRecord) => {
       const targetFolderID = normalizeFolderID(file.folderId)
       if (currentFolderIdRef.current !== targetFolderID) {
         return false

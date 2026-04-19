@@ -1,4 +1,4 @@
-import type { UploadQueueTask } from '@/features/upload/upload-queue-types'
+import type { TransferQueueTask } from '@/features/upload/transfer-queue-types'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
@@ -19,7 +19,7 @@ export function formatBytes(bytes: number) {
   return `${unitIndex === 0 ? size : size.toFixed(2)} ${units[unitIndex]}`
 }
 
-const STATUS_TEXT: Partial<Record<UploadQueueTask['status'], string>> = {
+const STATUS_TEXT: Partial<Record<TransferQueueTask['status'], string>> = {
   queued: 'Waiting',
   running: 'Uploading',
   paused: 'Paused',
@@ -27,7 +27,7 @@ const STATUS_TEXT: Partial<Record<UploadQueueTask['status'], string>> = {
   error: 'Failed'
 }
 
-export function getTaskStatusText(task: UploadQueueTask) {
+export function getTaskStatusText(task: TransferQueueTask) {
   if (task.stageMessage.trim()) {
     return task.stageMessage
   }

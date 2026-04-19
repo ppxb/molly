@@ -1,5 +1,5 @@
-import type { UploadNameConflictAction } from '@/lib/drive/client/upload/types'
-import type { UploadFolderRecord } from '@/lib/drive/shared'
+import type { NameConflictAction } from '@/lib/drive/upload/types'
+import type { DriveFolderRecord } from '@/lib/drive/types'
 
 import { CreateFolderDialog } from '@/features/file-browser/components/create-folder-dialog'
 import { MoveItemDialog } from '@/features/file-browser/components/move-item-dialog'
@@ -10,7 +10,7 @@ import {
   type FolderDetailsSummary,
   ItemDetailsDialog
 } from '@/features/file-browser/components/item-details-dialog'
-import { UploadNameConflictDialog } from '@/features/file-browser/components/name-conflict-dialog'
+import { NameConflictDialog } from '@/features/file-browser/components/name-conflict-dialog'
 
 interface RenameTarget {
   id: string
@@ -46,7 +46,7 @@ export interface FileBrowserDialogsProps {
   submitRename: (nextName: string) => Promise<void>
   onRenameDialogOpenChange: (open: boolean) => void
   moveTarget: MoveTarget | null
-  moveTargetFolders: UploadFolderRecord[]
+  moveTargetFolders: DriveFolderRecord[]
   isLoadingMoveTargets: boolean
   isMoving: boolean
   submitMove: (targetFolderId: string) => Promise<void>
@@ -60,7 +60,7 @@ export interface FileBrowserDialogsProps {
   folderDetailsSummary: FolderDetailsSummary | null
   onDetailsDialogOpenChange: (open: boolean) => void
   activeNameConflict: ActiveNameConflict | null
-  resolveActiveNameConflict: (action: UploadNameConflictAction) => void
+  resolveActiveNameConflict: (action: NameConflictAction) => void
 }
 
 export function FileBrowserDialogs({
@@ -136,7 +136,7 @@ export function FileBrowserDialogs({
         onOpenChange={onDetailsDialogOpenChange}
       />
 
-      <UploadNameConflictDialog
+      <NameConflictDialog
         open={activeNameConflict !== null}
         fileName={activeNameConflict?.fileName ?? ''}
         onOpenChange={open => {

@@ -1,8 +1,8 @@
 import { useCallback, useState, type MutableRefObject } from 'react'
 import { toast } from 'sonner'
 
-import { getErrorMessage, recycleBinTrashRequest } from '@/lib/drive/client/api'
-import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/drive/shared'
+import { getErrorMessage, recycleBinTrashRequest } from '@/lib/drive/api'
+import type { DriveFolderRecord, DriveFileRecord } from '@/lib/drive/types'
 
 import type { BrowserEntriesSnapshot, TrashTarget } from './types'
 
@@ -122,7 +122,7 @@ export function useTrashItemAction({
     }
   }, [breadcrumbs, currentFolderIdRef, currentPath, files, folders, loadEntries, setEntries, trashTarget])
 
-  const onTrashFile = useCallback((file: UploadedFileRecord) => {
+  const onTrashFile = useCallback((file: DriveFileRecord) => {
     setTrashTarget({
       id: file.id,
       type: 'file',
@@ -130,7 +130,7 @@ export function useTrashItemAction({
     })
   }, [])
 
-  const onTrashFolder = useCallback((folder: UploadFolderRecord) => {
+  const onTrashFolder = useCallback((folder: DriveFolderRecord) => {
     setTrashTarget({
       id: folder.id,
       type: 'folder',

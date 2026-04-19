@@ -1,1 +1,1 @@
-export { useUploadQueue } from '@/features/upload/hooks/use-upload-queue'
+export { useTransferQueue } from '@/features/upload/hooks/use-transfer-queue'

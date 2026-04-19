@@ -1,6 +1,4 @@
-import type { MutableRefObject } from 'react'
-
-import type { UploadBreadcrumbItem, UploadFolderRecord, UploadedFileRecord } from '@/lib/drive/shared'
+import type { DriveBreadcrumbItem, DriveFolderRecord, DriveFileRecord } from '@/lib/drive/types'
 
 export interface RenameTarget {
   id: string
@@ -23,22 +21,20 @@ export interface TrashTarget {
 }
 
 export interface UseItemActionsInput {
-  currentFolderId: string
-  currentFolderIdRef: MutableRefObject<string>
   loadEntries: (folderId: string) => Promise<void>
 }
 
 export interface BrowserEntriesSnapshot {
   currentPath: string
-  breadcrumbs: UploadBreadcrumbItem[]
-  folders: UploadFolderRecord[]
-  files: UploadedFileRecord[]
+  breadcrumbs: DriveBreadcrumbItem[]
+  folders: DriveFolderRecord[]
+  files: DriveFileRecord[]
   setEntries: (input: {
     folderId: string
     path: string
-    breadcrumbs: UploadBreadcrumbItem[]
-    folders: UploadFolderRecord[]
-    files: UploadedFileRecord[]
+    breadcrumbs: DriveBreadcrumbItem[]
+    folders: DriveFolderRecord[]
+    files: DriveFileRecord[]
   }) => void
 }
 

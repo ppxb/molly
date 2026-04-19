@@ -9,11 +9,11 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator
 } from '@/components/ui/breadcrumb'
-import type { UploadBreadcrumbItem } from '@/lib/drive/shared'
+import type { DriveBreadcrumbItem } from '@/lib/drive/types'
 
 interface BreadcrumbNavProps {
   currentFolderId: string
-  breadcrumbs: UploadBreadcrumbItem[]
+  breadcrumbs: DriveBreadcrumbItem[]
   onNavigate: (folderId: string) => void
 }
 

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { ArrowDownToLine, Trash2Icon } from 'lucide-react'
 
 import { ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu'
-import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/drive/shared'
+import type { DriveFolderRecord, DriveFileRecord } from '@/lib/drive/types'
 
 interface BaseContextMenuContentProps<TItem> {
   item: TItem
@@ -15,24 +15,24 @@ interface BaseContextMenuContentProps<TItem> {
 }
 
 interface FolderContextMenuContentProps {
-  folder: UploadFolderRecord
-  onRename?: (folder: UploadFolderRecord) => void
-  onMove?: (folder: UploadFolderRecord) => void
-  onViewDetails?: (folder: UploadFolderRecord) => void
-  onTrash?: (folder: UploadFolderRecord) => void
-  onRestore?: (folder: UploadFolderRecord) => void
-  onDeleteForever?: (folder: UploadFolderRecord) => void
+  folder: DriveFolderRecord
+  onRename?: (folder: DriveFolderRecord) => void
+  onMove?: (folder: DriveFolderRecord) => void
+  onViewDetails?: (folder: DriveFolderRecord) => void
+  onTrash?: (folder: DriveFolderRecord) => void
+  onRestore?: (folder: DriveFolderRecord) => void
+  onDeleteForever?: (folder: DriveFolderRecord) => void
 }
 
 interface FileContextMenuContentProps {
-  file: UploadedFileRecord
+  file: DriveFileRecord
   onOpenFile?: (fileId: string, mode: 'preview' | 'download') => void
-  onRename?: (file: UploadedFileRecord) => void
-  onMove?: (file: UploadedFileRecord) => void
-  onViewDetails?: (file: UploadedFileRecord) => void
-  onTrash?: (file: UploadedFileRecord) => void
-  onRestore?: (file: UploadedFileRecord) => void
-  onDeleteForever?: (file: UploadedFileRecord) => void
+  onRename?: (file: DriveFileRecord) => void
+  onMove?: (file: DriveFileRecord) => void
+  onViewDetails?: (file: DriveFileRecord) => void
+  onTrash?: (file: DriveFileRecord) => void
+  onRestore?: (file: DriveFileRecord) => void
+  onDeleteForever?: (file: DriveFileRecord) => void
 }
 
 interface SharedMenuActionsProps<TItem> extends BaseContextMenuContentProps<TItem> {

@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import type { UploadFolderRecord } from '@/lib/drive/shared'
+import type { DriveFolderRecord } from '@/lib/drive/types'
 import { cn } from '@/lib/utils'
 
 interface MoveItemDialogProps {
@@ -19,7 +19,7 @@ interface MoveItemDialogProps {
   type: 'file' | 'folder'
   name: string
   initialTargetFolderId: string
-  folders: UploadFolderRecord[]
+  folders: DriveFolderRecord[]
   isLoadingTargets?: boolean
   isSubmitting?: boolean
   onOpenChange: (open: boolean) => void

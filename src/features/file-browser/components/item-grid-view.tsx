@@ -16,32 +16,32 @@ import {
   FileContextMenuContent,
   FolderContextMenuContent
 } from '@/features/file-browser/components/item-context-menu-content'
-import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/drive/shared'
+import type { DriveFolderRecord, DriveFileRecord } from '@/lib/drive/types'
 import { formatDateTime } from '@/lib/utils'
 
 export interface ItemActionProps {
   onNavigate?: (folderId: string) => void
   onOpenFile?: (fileId: string, mode: 'preview' | 'download') => void
-  onRenameFile?: (file: UploadedFileRecord) => void
-  onMoveFile?: (file: UploadedFileRecord) => void
-  onViewDetailsFile?: (file: UploadedFileRecord) => void
-  onTrashFile?: (file: UploadedFileRecord) => void
-  onRestoreFile?: (file: UploadedFileRecord) => void
-  onDeleteForeverFile?: (file: UploadedFileRecord) => void
-  onRenameFolder?: (folder: UploadFolderRecord) => void
-  onMoveFolder?: (folder: UploadFolderRecord) => void
-  onViewDetailsFolder?: (folder: UploadFolderRecord) => void
-  onTrashFolder?: (folder: UploadFolderRecord) => void
-  onRestoreFolder?: (folder: UploadFolderRecord) => void
-  onDeleteForeverFolder?: (folder: UploadFolderRecord) => void
+  onRenameFile?: (file: DriveFileRecord) => void
+  onMoveFile?: (file: DriveFileRecord) => void
+  onViewDetailsFile?: (file: DriveFileRecord) => void
+  onTrashFile?: (file: DriveFileRecord) => void
+  onRestoreFile?: (file: DriveFileRecord) => void
+  onDeleteForeverFile?: (file: DriveFileRecord) => void
+  onRenameFolder?: (folder: DriveFolderRecord) => void
+  onMoveFolder?: (folder: DriveFolderRecord) => void
+  onViewDetailsFolder?: (folder: DriveFolderRecord) => void
+  onTrashFolder?: (folder: DriveFolderRecord) => void
+  onRestoreFolder?: (folder: DriveFolderRecord) => void
+  onDeleteForeverFolder?: (folder: DriveFolderRecord) => void
 }
 
 interface ItemGridViewProps extends ItemActionProps {
-  folders: UploadFolderRecord[]
-  files: UploadedFileRecord[]
+  folders: DriveFolderRecord[]
+  files: DriveFileRecord[]
 }
 
-export function resolveFileIcon(file: UploadedFileRecord) {
+export function resolveFileIcon(file: DriveFileRecord) {
   const extension = file.fileExtension.toLowerCase()
   const contentType = file.contentType.toLowerCase()
 
