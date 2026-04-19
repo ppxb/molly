@@ -45,7 +45,7 @@ interface DetailsTarget {
 }
 
 interface FolderDetailsSummary {
-  totalBytes: number
+  size: number
   fileCount: number
   folderCount: number
   displaySummary: string
@@ -398,7 +398,7 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
           return
         }
         setFolderDetailsSummary({
-          totalBytes: summary.size,
+          size: summary.size,
           fileCount: summary.file_count,
           folderCount: summary.folder_count,
           displaySummary: summary.display_summary

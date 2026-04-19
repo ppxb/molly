@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/context-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/upload/shared'
+import { formatDateTime } from '@/lib/utils'
 
 interface UploadEntryGridProps {
   folders: UploadFolderRecord[]
@@ -39,14 +40,6 @@ interface UploadEntryGridProps {
   onRestoreFolder?: (folder: UploadFolderRecord) => void
   onDeleteForeverFolder?: (folder: UploadFolderRecord) => void
   emptyMessage?: string
-}
-
-function formatDateTime(iso: string) {
-  const date = new Date(iso)
-  const pad = (value: number) => `${value}`.padStart(2, '0')
-  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(
-    date.getMinutes()
-  )}`
 }
 
 function resolveFileIcon(file: UploadedFileRecord) {

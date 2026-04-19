@@ -34,3 +34,16 @@ export function getTaskStatusText(task: UploadQueueTask) {
 
   return STATUS_TEXT[task.status] ?? 'Waiting'
 }
+
+const formatter = new Intl.DateTimeFormat('zh-CN', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false
+})
+
+export function formatDateTime(iso: string) {
+  return iso ? formatter.format(new Date(iso)) : '-'
+}

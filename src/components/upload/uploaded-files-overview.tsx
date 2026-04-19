@@ -55,7 +55,7 @@ export function UploadedFilesOverview({
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <CardTitle>File Manager</CardTitle>
+              <CardTitle>共 {files.length + folders.length} 项</CardTitle>
               <CardDescription>Single-click folders to open. Right-click files or folders for actions.</CardDescription>
             </div>
             <Button variant="outline" onClick={onRefresh} disabled={isLoading}>

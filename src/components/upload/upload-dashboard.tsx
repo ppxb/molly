@@ -188,7 +188,7 @@ function UploadDashboardContent() {
           onClick={() => setActiveView('files')}
         >
           <FolderIcon className="size-4" />
-          My Files
+          全部文件
         </Button>
         <Button
           type="button"
@@ -196,7 +196,7 @@ function UploadDashboardContent() {
           onClick={() => setActiveView('recyclebin')}
         >
           <Trash2Icon className="size-4" />
-          Recycle Bin
+          回收站
         </Button>
       </div>
 

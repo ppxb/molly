@@ -1,14 +1,5 @@
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
-import { formatBytes } from '@/lib/utils'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { formatDateTime } from '@/lib/utils'
 
 interface EntryDetailsTarget {
   id: string
@@ -20,7 +11,7 @@ interface EntryDetailsTarget {
 }
 
 interface FolderDetailsSummary {
-  totalBytes: number
+  size: number
   fileCount: number
   folderCount: number
   displaySummary: string
@@ -34,21 +25,18 @@ interface UploadEntryDetailsDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-function formatDateTime(iso: string) {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) {
-    return '-'
-  }
-  return date.toLocaleString('zh-CN', { hour12: false })
-}
-
 function DetailsRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[8rem_1fr] items-start gap-3 text-sm">
+    <div className="flex flex-col items-start gap-1">
       <div className="text-muted-foreground">{label}</div>
-      <div className="break-all">{value}</div>
+      <div className="text-sm break-all">{value}</div>
     </div>
   )
+}
+
+function getFolderInfo(isLoading: boolean, summary: FolderDetailsSummary | null | undefined) {
+  if (isLoading || !summary) return '-'
+  return summary.displaySummary
 }
 
 export function UploadEntryDetailsDialog({
@@ -58,14 +46,11 @@ export function UploadEntryDetailsDialog({
   folderSummary = null,
   onOpenChange
 }: UploadEntryDetailsDialogProps) {
-  const isFolder = target?.type === 'folder'
+  if (!target) {
+    return <Dialog open={open} onOpenChange={onOpenChange} />
+  }
 
-  const folderInfo = isLoadingFolderSummary
-    ? '统计中...'
-    : folderSummary
-      ? folderSummary.displaySummary ||
-        `${formatBytes(folderSummary.totalBytes)}（包含 ${folderSummary.fileCount} 个文件，${folderSummary.folderCount} 个文件夹）`
-      : '-'
+  const isFolder = target.type === 'folder'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -76,18 +61,12 @@ export function UploadEntryDetailsDialog({
         </DialogHeader>
 
         <div className="space-y-3">
-          <DetailsRow label={isFolder ? '文件夹名' : '文件名'} value={target?.name ?? '-'} />
-          {isFolder ? <DetailsRow label="文件夹信息" value={folderInfo} /> : null}
-          <DetailsRow label="文件位置" value={target?.location ?? '-'} />
-          <DetailsRow label="云端创建时间" value={formatDateTime(target?.createdAt ?? '')} />
-          <DetailsRow label="最后修改时间" value={formatDateTime(target?.updatedAt ?? '')} />
+          <DetailsRow label={isFolder ? '文件夹名' : '文件名'} value={target.name} />
+          {isFolder && <DetailsRow label="文件夹信息" value={getFolderInfo(isLoadingFolderSummary, folderSummary)} />}
+          <DetailsRow label="文件位置" value={target.location} />
+          <DetailsRow label="云端创建时间" value={formatDateTime(target.createdAt)} />
+          <DetailsRow label="最后修改时间" value={formatDateTime(target.updatedAt)} />
         </div>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button">关闭</Button>
-          </DialogClose>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
