@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 
 interface RenameEntryDialogProps {
@@ -53,7 +61,6 @@ export function RenameEntryDialog({
     setName(fileNameParts.editableName)
   }, [fileNameParts.editableName, open])
 
-  const dialogTitle = type === 'file' ? 'Rename File' : 'Rename Folder'
   const placeholder = type === 'file' ? 'Enter file name' : 'Enter folder name'
 
   const handleSubmit = async () => {
@@ -72,7 +79,8 @@ export function RenameEntryDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogTitle>重命名</DialogTitle>
+          <DialogDescription>你正在对该文件或文件夹进行重命名，请避免重名。</DialogDescription>
         </DialogHeader>
 
         <div className="mt-3 flex items-center gap-2">
@@ -91,14 +99,14 @@ export function RenameEntryDialog({
           />
         </div>
 
-        <DialogFooter className="justify-end">
+        <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="outline" disabled={isSubmitting}>
-              Cancel
+              取消
             </Button>
           </DialogClose>
           <Button type="button" disabled={isSubmitting || name.trim().length === 0} onClick={() => void handleSubmit()}>
-            {isSubmitting ? 'Saving...' : 'Confirm'}
+            确认
           </Button>
         </DialogFooter>
       </DialogContent>
