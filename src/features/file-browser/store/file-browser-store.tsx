@@ -2,9 +2,9 @@ import { createContext, type ReactNode, useContext, useRef } from 'react'
 import { useStore } from 'zustand'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 
-import type { UploadBreadcrumbItem, UploadedFileRecord, UploadFolderRecord } from '@/lib/upload/shared'
+import type { UploadBreadcrumbItem, UploadedFileRecord, UploadFolderRecord } from '@/lib/drive/shared'
 
-type UploadBrowserState = {
+type FileBrowserState = {
   currentFolderId: string
   currentPath: string
   breadcrumbs: UploadBreadcrumbItem[]
@@ -14,7 +14,7 @@ type UploadBrowserState = {
   isPanelVisible: boolean
 }
 
-type UploadBrowserActions = {
+type FileBrowserActions = {
   setCurrentFolderId: (folderId: string) => void
   setEntries: (entries: {
     folderId: string
@@ -27,11 +27,11 @@ type UploadBrowserActions = {
   setPanelVisible: (visible: boolean) => void
 }
 
-export type UploadBrowserStoreState = UploadBrowserState & UploadBrowserActions
+export type FileBrowserStoreState = FileBrowserState & FileBrowserActions
 
-export type UploadBrowserStore = StoreApi<UploadBrowserStoreState>
+export type FileBrowserStore = StoreApi<FileBrowserStoreState>
 
-const DEFAULT_STATE: UploadBrowserState = {
+const DEFAULT_STATE: FileBrowserState = {
   currentFolderId: 'root',
   currentPath: '',
   breadcrumbs: [
@@ -47,8 +47,8 @@ const DEFAULT_STATE: UploadBrowserState = {
   isPanelVisible: false
 }
 
-function createUploadBrowserStore(initialState: Partial<UploadBrowserState> = {}): UploadBrowserStore {
-  return createStore<UploadBrowserStoreState>()(set => ({
+function createFileBrowserStore(initialState: Partial<FileBrowserState> = {}): FileBrowserStore {
+  return createStore<FileBrowserStoreState>()(set => ({
     ...DEFAULT_STATE,
     ...initialState,
     setCurrentFolderId: folderId =>
@@ -74,28 +74,28 @@ function createUploadBrowserStore(initialState: Partial<UploadBrowserState> = {}
   }))
 }
 
-const UploadBrowserStoreContext = createContext<UploadBrowserStore | null>(null)
+const FileBrowserStoreContext = createContext<FileBrowserStore | null>(null)
 
-export function UploadBrowserStoreProvider({
+export function FileBrowserStoreProvider({
   children,
   initialState
 }: {
   children: ReactNode
-  initialState?: Partial<UploadBrowserState>
+  initialState?: Partial<FileBrowserState>
 }) {
-  const storeRef = useRef<UploadBrowserStore | null>(null)
+  const storeRef = useRef<FileBrowserStore | null>(null)
 
   if (!storeRef.current) {
-    storeRef.current = createUploadBrowserStore(initialState)
+    storeRef.current = createFileBrowserStore(initialState)
   }
 
-  return <UploadBrowserStoreContext.Provider value={storeRef.current}>{children}</UploadBrowserStoreContext.Provider>
+  return <FileBrowserStoreContext.Provider value={storeRef.current}>{children}</FileBrowserStoreContext.Provider>
 }
 
-export function useUploadBrowserStore<T>(selector: (state: UploadBrowserStoreState) => T) {
-  const store = useContext(UploadBrowserStoreContext)
+export function useFileBrowserStore<T>(selector: (state: FileBrowserStoreState) => T) {
+  const store = useContext(FileBrowserStoreContext)
   if (!store) {
-    throw new Error('useUploadBrowserStore must be used within UploadBrowserStoreProvider')
+    throw new Error('useFileBrowserStore must be used within FileBrowserStoreProvider')
   }
 
   return useStore(store, selector)

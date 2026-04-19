@@ -3,15 +3,15 @@ import { Loader2, RefreshCcw, Trash2Icon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { EntryBrowserContent } from '@/features/file-browser/components/entry-browser-content'
+import { ItemBrowserContent } from '@/features/file-browser/components/item-browser-content'
 import type {
   RecycleBinFileRecord,
   RecycleBinFolderRecord,
   UploadFolderRecord,
   UploadedFileRecord
-} from '@/lib/upload/shared'
+} from '@/lib/drive/shared'
 
-interface UploadRecycleBinOverviewProps {
+interface RecycleBinOverviewProps {
   folders: RecycleBinFolderRecord[]
   files: RecycleBinFileRecord[]
   isLoading: boolean
@@ -25,7 +25,7 @@ interface UploadRecycleBinOverviewProps {
   onDeleteForeverFolder: (folder: UploadFolderRecord) => void
 }
 
-export function UploadRecycleBinOverview({
+export function RecycleBinOverview({
   folders,
   files,
   isLoading,
@@ -37,7 +37,7 @@ export function UploadRecycleBinOverview({
   onRestoreFolder,
   onDeleteForeverFile,
   onDeleteForeverFolder
-}: UploadRecycleBinOverviewProps) {
+}: RecycleBinOverviewProps) {
   return (
     <TooltipProvider>
       <Card className="border-border/70">
@@ -66,7 +66,7 @@ export function UploadRecycleBinOverview({
         </CardHeader>
 
         <CardContent>
-          <EntryBrowserContent
+          <ItemBrowserContent
             folders={folders}
             files={files}
             onRestoreFile={onRestoreFile}

@@ -1,5 +1,5 @@
 import type { UploadQueueTask } from '@/features/upload/upload-queue-types'
-import { normalizeFolderPath } from '@/lib/upload/path'
+import { normalizeFolderPath } from '@/lib/drive/path'
 
 export function createTaskFingerprint(file: File, folderId: string) {
   return `${folderId}:${file.name}:${file.size}:${file.lastModified}`

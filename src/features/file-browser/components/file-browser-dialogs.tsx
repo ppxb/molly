@@ -1,14 +1,14 @@
-import type { UploadNameConflictAction } from '@/lib/upload/client/upload/types'
-import type { UploadFolderRecord } from '@/lib/upload/shared'
+import type { UploadNameConflictAction } from '@/lib/drive/client/upload/types'
+import type { UploadFolderRecord } from '@/lib/drive/shared'
 
 import { CreateFolderDialog } from '@/features/file-browser/components/create-folder-dialog'
-import { MoveEntryDialog } from '@/features/file-browser/components/move-item-dialog'
-import { RenameEntryDialog } from '@/features/file-browser/components/rename-item-dialog'
-import { TrashEntryDialog } from '@/features/file-browser/components/trash-item-dialog'
+import { MoveItemDialog } from '@/features/file-browser/components/move-item-dialog'
+import { RenameItemDialog } from '@/features/file-browser/components/rename-item-dialog'
+import { TrashItemDialog } from '@/features/file-browser/components/trash-item-dialog'
 import {
-  type EntryDetailsTarget,
+  type ItemDetailsTarget,
   type FolderDetailsSummary,
-  UploadEntryDetailsDialog
+  ItemDetailsDialog
 } from '@/features/file-browser/components/item-details-dialog'
 import { UploadNameConflictDialog } from '@/features/file-browser/components/name-conflict-dialog'
 
@@ -55,7 +55,7 @@ export interface FileBrowserDialogsProps {
   isTrashing: boolean
   submitTrash: () => Promise<void>
   onTrashDialogOpenChange: (open: boolean) => void
-  detailsTarget: EntryDetailsTarget | null
+  detailsTarget: ItemDetailsTarget | null
   isLoadingDetailsSummary: boolean
   folderDetailsSummary: FolderDetailsSummary | null
   onDetailsDialogOpenChange: (open: boolean) => void
@@ -100,7 +100,7 @@ export function FileBrowserDialogs({
         onConfirm={createFolder}
       />
 
-      <RenameEntryDialog
+      <RenameItemDialog
         open={renameTarget !== null}
         type={renameTarget?.type ?? 'file'}
         currentName={renameTarget?.name ?? ''}
@@ -109,7 +109,7 @@ export function FileBrowserDialogs({
         onConfirm={submitRename}
       />
 
-      <MoveEntryDialog
+      <MoveItemDialog
         open={moveTarget !== null}
         type={moveTarget?.type ?? 'file'}
         name={moveTarget?.name ?? ''}
@@ -121,14 +121,14 @@ export function FileBrowserDialogs({
         onConfirm={submitMove}
       />
 
-      <TrashEntryDialog
+      <TrashItemDialog
         open={trashTarget !== null}
         isSubmitting={isTrashing}
         onOpenChange={onTrashDialogOpenChange}
         onConfirm={submitTrash}
       />
 
-      <UploadEntryDetailsDialog
+      <ItemDetailsDialog
         open={detailsTarget !== null}
         target={detailsTarget}
         isLoadingFolderSummary={isLoadingDetailsSummary}

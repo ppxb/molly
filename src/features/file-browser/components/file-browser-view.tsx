@@ -1,6 +1,6 @@
 import { BreadcrumbNav } from '@/features/file-browser/components/breadcrumb-nav'
-import { EntryBrowserContent } from '@/features/file-browser/components/entry-browser-content'
-import { type EntryActionProps } from '@/features/file-browser/components/entry-grid-view'
+import { ItemBrowserContent } from '@/features/file-browser/components/item-browser-content'
+import { type ItemActionProps } from '@/features/file-browser/components/item-grid-view'
 import {
   FileBrowserContextMenuActions,
   FileBrowserToolbar
@@ -8,10 +8,10 @@ import {
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import type { FileListOrderBy } from '@/lib/upload/client/api'
-import type { UploadBreadcrumbItem, UploadFolderRecord, UploadedFileRecord } from '@/lib/upload/shared'
+import type { FileListOrderBy } from '@/lib/drive/client/api'
+import type { UploadBreadcrumbItem, UploadFolderRecord, UploadedFileRecord } from '@/lib/drive/shared'
 
-export interface FileBrowserViewProps extends EntryActionProps {
+export interface FileBrowserViewProps extends ItemActionProps {
   currentFolderId: string
   breadcrumbs: UploadBreadcrumbItem[]
   folders: UploadFolderRecord[]
@@ -84,7 +84,7 @@ export function FileBrowserView({
           <ContextMenu>
             <ContextMenuTrigger asChild>
               <div>
-                <EntryBrowserContent
+                <ItemBrowserContent
                   folders={folders}
                   files={files}
                   viewMode={viewMode}

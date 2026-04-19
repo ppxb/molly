@@ -11,10 +11,10 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import type { UploadFolderRecord } from '@/lib/upload/shared'
+import type { UploadFolderRecord } from '@/lib/drive/shared'
 import { cn } from '@/lib/utils'
 
-interface MoveEntryDialogProps {
+interface MoveItemDialogProps {
   open: boolean
   type: 'file' | 'folder'
   name: string
@@ -30,7 +30,7 @@ function formatFolderPath(path: string) {
   return path ? `/${path}` : '/'
 }
 
-export function MoveEntryDialog({
+export function MoveItemDialog({
   open,
   type,
   name,
@@ -40,7 +40,7 @@ export function MoveEntryDialog({
   isSubmitting = false,
   onOpenChange,
   onConfirm
-}: MoveEntryDialogProps) {
+}: MoveItemDialogProps) {
   const [selectedFolderId, setSelectedFolderId] = useState(initialTargetFolderId)
 
   useEffect(() => {

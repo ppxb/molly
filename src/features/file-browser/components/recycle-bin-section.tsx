@@ -1,12 +1,12 @@
 import { ClearRecycleBinDialog } from '@/features/file-browser/components/clear-recycle-bin-dialog'
 import { DeleteForeverDialog } from '@/features/file-browser/components/delete-forever-dialog'
-import { UploadRecycleBinOverview } from '@/features/file-browser/components/recycle-bin-overview'
+import { RecycleBinOverview } from '@/features/file-browser/components/recycle-bin-overview'
 import type {
   RecycleBinFileRecord,
   RecycleBinFolderRecord,
   UploadFolderRecord,
   UploadedFileRecord
-} from '@/lib/upload/shared'
+} from '@/lib/drive/shared'
 
 interface DeleteForeverTarget {
   type: 'file' | 'folder'
@@ -56,7 +56,7 @@ export function RecycleBinSection({
 }: RecycleBinSectionProps) {
   return (
     <>
-      <UploadRecycleBinOverview
+      <RecycleBinOverview
         folders={folders}
         files={files}
         isLoading={isLoading}

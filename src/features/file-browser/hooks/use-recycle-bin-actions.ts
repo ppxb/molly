@@ -6,8 +6,8 @@ import {
   recycleBinClearRequest,
   recycleBinDeleteRequest,
   recycleBinRestoreRequest
-} from '@/lib/upload/client/api'
-import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/upload/shared'
+} from '@/lib/drive/client/api'
+import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/drive/shared'
 
 interface DeleteForeverTarget {
   id: string
@@ -17,12 +17,12 @@ interface DeleteForeverTarget {
 
 interface UseUploadRecycleBinActionsInput {
   refresh: () => Promise<void>
-  removeEntryOptimistic: (target: { id: string; type: 'file' | 'folder' }) => (() => void) | null
+  removeItemOptimistic: (target: { id: string; type: 'file' | 'folder' }) => (() => void) | null
   clearAllOptimistic: () => () => void
 }
 
 export function useRecycleBinActions(input: UseUploadRecycleBinActionsInput) {
-  const { refresh, removeEntryOptimistic, clearAllOptimistic } = input
+  const { refresh, removeItemOptimistic, clearAllOptimistic } = input
   const [isRestoring, setIsRestoring] = useState(false)
   const [isDeletingForever, setIsDeletingForever] = useState(false)
   const [isClearing, setIsClearing] = useState(false)
@@ -31,7 +31,7 @@ export function useRecycleBinActions(input: UseUploadRecycleBinActionsInput) {
 
   const restoreEntry = useCallback(
     async (target: DeleteForeverTarget) => {
-      const rollback = removeEntryOptimistic({
+      const rollback = removeItemOptimistic({
         id: target.id,
         type: target.type
       })
@@ -49,7 +49,7 @@ export function useRecycleBinActions(input: UseUploadRecycleBinActionsInput) {
         setIsRestoring(false)
       }
     },
-    [refresh, removeEntryOptimistic]
+    [refresh, removeItemOptimistic]
   )
 
   const onRestoreFile = useCallback(
@@ -96,7 +96,7 @@ export function useRecycleBinActions(input: UseUploadRecycleBinActionsInput) {
     }
 
     const target = deleteForeverTarget
-    const rollback = removeEntryOptimistic({
+    const rollback = removeItemOptimistic({
       id: target.id,
       type: target.type
     })
@@ -115,7 +115,7 @@ export function useRecycleBinActions(input: UseUploadRecycleBinActionsInput) {
     } finally {
       setIsDeletingForever(false)
     }
-  }, [deleteForeverTarget, refresh, removeEntryOptimistic])
+  }, [deleteForeverTarget, refresh, removeItemOptimistic])
 
   const onDeleteForeverDialogOpenChange = useCallback((open: boolean) => {
     if (!open) {

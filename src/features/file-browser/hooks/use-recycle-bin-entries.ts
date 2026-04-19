@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 
-import { getErrorMessage, listRecycleBinRequest, type RecycleBinListItem } from '@/lib/upload/client/api'
-import type { RecycleBinEntriesResponse, RecycleBinFileRecord, RecycleBinFolderRecord } from '@/lib/upload/shared'
+import { getErrorMessage, listRecycleBinRequest, type RecycleBinListItem } from '@/lib/drive/client/api'
+import type { RecycleBinEntriesResponse, RecycleBinFileRecord, RecycleBinFolderRecord } from '@/lib/drive/shared'
 
 function inferFileExtension(input: { name: string; fileExtension?: string }) {
   if (input.fileExtension && input.fileExtension.trim().length > 0) {
@@ -64,7 +64,7 @@ export function useRecycleBinEntries() {
   const [nextMarker, setNextMarker] = useState('')
   const [isLoadingRecycleBin, setIsLoadingRecycleBin] = useState(false)
 
-  const removeEntryOptimistic = useCallback(
+  const removeItemOptimistic = useCallback(
     (target: { id: string; type: 'file' | 'folder' }) => {
       if (target.type === 'folder') {
         const index = folders.findIndex(folder => folder.id === target.id)
@@ -159,12 +159,12 @@ export function useRecycleBinEntries() {
     nextMarker,
     isLoadingRecycleBin,
     loadRecycleBinEntries,
-    removeEntryOptimistic,
+    removeItemOptimistic,
     clearAllOptimistic
   } satisfies RecycleBinEntriesResponse & {
     isLoadingRecycleBin: boolean
     loadRecycleBinEntries: () => Promise<void>
-    removeEntryOptimistic: (target: { id: string; type: 'file' | 'folder' }) => (() => void) | null
+    removeItemOptimistic: (target: { id: string; type: 'file' | 'folder' }) => (() => void) | null
     clearAllOptimistic: () => () => void
   }
 }

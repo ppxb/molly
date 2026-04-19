@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 
-interface RenameEntryDialogProps {
+interface RenameItemDialogProps {
   open: boolean
   type: 'file' | 'folder'
   currentName: string
@@ -21,14 +21,14 @@ interface RenameEntryDialogProps {
   onConfirm: (nextName: string) => Promise<void> | void
 }
 
-export function RenameEntryDialog({
+export function RenameItemDialog({
   open,
   type,
   currentName,
   isSubmitting = false,
   onOpenChange,
   onConfirm
-}: RenameEntryDialogProps) {
+}: RenameItemDialogProps) {
   const [name, setName] = useState(currentName)
 
   const fileNameParts = useMemo(() => {

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { useUploadBrowserStore } from '@/features/file-browser/store/file-browser-store'
-import { getErrorMessage, listUploadEntriesRequest, type FileListOrderBy } from '@/lib/upload/client/api'
-import type { UploadBreadcrumbItem, UploadedFileRecord } from '@/lib/upload/shared'
+import { useFileBrowserStore } from '@/features/file-browser/store/file-browser-store'
+import { getErrorMessage, listUploadEntriesRequest, type FileListOrderBy } from '@/lib/drive/client/api'
+import type { UploadBreadcrumbItem, UploadedFileRecord } from '@/lib/drive/shared'
 
 function normalizeFolderID(folderId: string) {
   const normalized = folderId.trim()
@@ -65,17 +65,17 @@ function resolveOptimisticLocation(input: {
 }
 
 export function useFileBrowserEntries() {
-  const currentFolderId = useUploadBrowserStore(state => state.currentFolderId)
-  const currentPath = useUploadBrowserStore(state => state.currentPath)
-  const breadcrumbs = useUploadBrowserStore(state => state.breadcrumbs)
-  const folders = useUploadBrowserStore(state => state.folders)
-  const files = useUploadBrowserStore(state => state.files)
-  const isLoadingEntries = useUploadBrowserStore(state => state.isLoadingEntries)
-  const isPanelVisible = useUploadBrowserStore(state => state.isPanelVisible)
+  const currentFolderId = useFileBrowserStore(state => state.currentFolderId)
+  const currentPath = useFileBrowserStore(state => state.currentPath)
+  const breadcrumbs = useFileBrowserStore(state => state.breadcrumbs)
+  const folders = useFileBrowserStore(state => state.folders)
+  const files = useFileBrowserStore(state => state.files)
+  const isLoadingEntries = useFileBrowserStore(state => state.isLoadingEntries)
+  const isPanelVisible = useFileBrowserStore(state => state.isPanelVisible)
 
-  const setEntries = useUploadBrowserStore(state => state.setEntries)
-  const setIsLoadingEntries = useUploadBrowserStore(state => state.setIsLoadingEntries)
-  const setPanelVisible = useUploadBrowserStore(state => state.setPanelVisible)
+  const setEntries = useFileBrowserStore(state => state.setEntries)
+  const setIsLoadingEntries = useFileBrowserStore(state => state.setIsLoadingEntries)
+  const setPanelVisible = useFileBrowserStore(state => state.setPanelVisible)
 
   const currentFolderIdRef = useRef(currentFolderId)
   const currentPathRef = useRef(currentPath)

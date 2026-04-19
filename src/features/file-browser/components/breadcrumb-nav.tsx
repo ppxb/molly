@@ -9,7 +9,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator
 } from '@/components/ui/breadcrumb'
-import type { UploadBreadcrumbItem } from '@/lib/upload/shared'
+import type { UploadBreadcrumbItem } from '@/lib/drive/shared'
 
 interface BreadcrumbNavProps {
   currentFolderId: string

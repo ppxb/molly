@@ -9,14 +9,14 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 
-interface TrashEntryDialogProps {
+interface TrashItemDialogProps {
   open: boolean
   isSubmitting?: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => Promise<void> | void
 }
 
-export function TrashEntryDialog({ open, isSubmitting = false, onOpenChange, onConfirm }: TrashEntryDialogProps) {
+export function TrashItemDialog({ open, isSubmitting = false, onOpenChange, onConfirm }: TrashItemDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>

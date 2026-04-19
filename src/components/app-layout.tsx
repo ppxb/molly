@@ -95,7 +95,7 @@ export function AppLayout({ activePage, onChangePage, children }: AppLayoutProps
           </div>
         </header>
 
-        <div className="flex-1">{children}</div>
+        <div className="flex min-h-0 flex-1">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   )

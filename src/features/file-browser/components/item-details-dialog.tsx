@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatDateTime } from '@/lib/utils'
 
-export interface EntryDetailsTarget {
+export interface ItemDetailsTarget {
   id: string
   type: 'file' | 'folder'
   name: string
@@ -18,9 +18,9 @@ export interface FolderDetailsSummary {
   displaySummary: string
 }
 
-interface UploadEntryDetailsDialogProps {
+interface ItemDetailsDialogProps {
   open: boolean
-  target: EntryDetailsTarget | null
+  target: ItemDetailsTarget | null
   isLoadingFolderSummary?: boolean
   folderSummary?: FolderDetailsSummary | null
   onOpenChange: (open: boolean) => void
@@ -40,13 +40,13 @@ function getFolderInfo(isLoading: boolean, summary: FolderDetailsSummary | null 
   return summary.displaySummary
 }
 
-export function UploadEntryDetailsDialog({
+export function ItemDetailsDialog({
   open,
   target,
   isLoadingFolderSummary = false,
   folderSummary = null,
   onOpenChange
-}: UploadEntryDetailsDialogProps) {
+}: ItemDetailsDialogProps) {
   if (!target) {
     return <Dialog open={open} onOpenChange={onOpenChange} />
   }

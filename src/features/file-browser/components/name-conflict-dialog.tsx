@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import type { UploadNameConflictAction } from '@/lib/upload/client/upload/types'
+import type { UploadNameConflictAction } from '@/lib/drive/client/upload/types'
 
 interface UploadNameConflictDialogProps {
   open: boolean

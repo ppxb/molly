@@ -18,7 +18,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import type { FileListOrderBy } from '@/lib/upload/client/api'
+import type { FileListOrderBy } from '@/lib/drive/client/api'
 
 interface FileBrowserToolbarProps {
   totalCount: number

@@ -1,6 +1,6 @@
 import type { UploadQueueTask } from '@/features/upload/upload-queue-types'
-import type { UploadStage, UploadStrategy, UploadedFileRecord } from '@/lib/upload/shared'
-import type { UploadResumeState } from '@/lib/upload/client/upload/types'
+import type { UploadStage, UploadStrategy, UploadedFileRecord } from '@/lib/drive/shared'
+import type { UploadResumeState } from '@/lib/drive/client/upload/types'
 
 export interface UpdateTaskPatch {
   status?: UploadQueueTask['status']
