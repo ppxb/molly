@@ -10,6 +10,7 @@ export interface UploadCallbacks {
   onStageChange?: (stage: UploadStage, message: string) => void
   onProgress?: (progress: UploadProgressPayload) => void
   onResumeStateChange?: (resumeState: UploadResumeState | null) => void
+  onBeforeComplete?: (file: UploadedFileRecord) => void
   onNameConflict?: (payload: UploadNameConflictPayload) => Promise<UploadNameConflictAction> | UploadNameConflictAction
 }
 

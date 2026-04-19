@@ -32,6 +32,8 @@ import type { UploadedFileRecord } from '@/lib/upload/shared'
 
 interface UseUploadQueueOptions {
   initialConcurrency?: number
+  onTaskFinalizeStart?: (file: UploadedFileRecord) => Promise<void> | void
+  onTaskFinalizeAbort?: (file: UploadedFileRecord) => Promise<void> | void
   onTaskDone?: (file: UploadedFileRecord) => Promise<void> | void
 }
 
@@ -61,6 +63,8 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
   const [isQueueHydrated, setIsQueueHydrated] = useState(false)
 
   const tasksRef = useRef<UploadQueueTask[]>([])
+  const onTaskFinalizeStartRef = useRef(options.onTaskFinalizeStart)
+  const onTaskFinalizeAbortRef = useRef(options.onTaskFinalizeAbort)
   const onTaskDoneRef = useRef(options.onTaskDone)
   const launchingTaskIDsRef = useRef<Set<string>>(new Set())
   const taskControllersRef = useRef<Map<string, AbortController>>(new Map())
@@ -133,6 +137,14 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
   useEffect(() => {
     tasksRef.current = tasks
   }, [tasks])
+
+  useEffect(() => {
+    onTaskFinalizeStartRef.current = options.onTaskFinalizeStart
+  }, [options.onTaskFinalizeStart])
+
+  useEffect(() => {
+    onTaskFinalizeAbortRef.current = options.onTaskFinalizeAbort
+  }, [options.onTaskFinalizeAbort])
 
   useEffect(() => {
     onTaskDoneRef.current = options.onTaskDone
@@ -220,6 +232,8 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         errorMessage: null
       })
 
+      let optimisticFile: UploadedFileRecord | null = null
+
       try {
         const result = await uploadFile({
           file: task.file,
@@ -242,11 +256,22 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
             })
             return enqueueNameConflict(taskID, payload)
           },
-          onStageChange: (stage, stageMessage) => {
+          onBeforeComplete: file => {
+            optimisticFile = file
             patchTask(taskID, {
+              uploadedFile: file
+            })
+            void onTaskFinalizeStartRef.current?.(file)
+          },
+          onStageChange: (stage, stageMessage) => {
+            const stagePatch: UpdateTaskPatch = {
               stage,
               stageMessage
-            })
+            }
+            if (stage !== 'uploading') {
+              stagePatch.speedBytesPerSecond = 0
+            }
+            patchTask(taskID, stagePatch)
           },
           onProgress: progress => {
             const nowMS = performance.now()
@@ -294,7 +319,7 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
         patchTask(taskID, {
           status: 'done',
           stage: 'done',
-          stageMessage: result.instantUpload ? 'Instant upload completed' : 'Upload completed',
+          stageMessage: result.instantUpload ? '秒传完成' : '上传完成',
           strategy: result.strategy,
           instantUpload: result.instantUpload,
           uploadedFile: result.file,
@@ -307,6 +332,11 @@ export function useUploadQueue(options: UseUploadQueueOptions = {}) {
 
         await onTaskDoneRef.current?.(result.file)
       } catch (error) {
+        if (optimisticFile) {
+          void onTaskFinalizeAbortRef.current?.(optimisticFile)
+          optimisticFile = null
+        }
+
         const isAbort = error instanceof DOMException && error.name === 'AbortError'
         const abortIntent = taskAbortIntentRef.current.get(taskID)
         const failureMessage = getErrorMessage(error, 'Upload failed')

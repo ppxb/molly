@@ -571,7 +571,7 @@ export function createWithFoldersFileRequest(input: {
   parent_file_id: string
   name: string
   type: 'file' | 'folder'
-  check_name_mode?: 'auto_rename' | 'refuse'
+  check_name_mode?: 'auto_rename' | 'refuse' | 'overwrite'
   size?: number
   create_scene?: string
   device_name?: string
@@ -669,7 +669,7 @@ export function updateFileRequest(input: {
   drive_id?: string
   file_id: string
   name: string
-  check_name_mode?: 'refuse' | 'auto_rename'
+  check_name_mode?: 'refuse' | 'auto_rename' | 'overwrite'
 }) {
   return requestJSON<FileGetResponse>('/v1/file/update', input)
 }

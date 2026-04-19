@@ -40,7 +40,9 @@ function UploadDashboardContent() {
     currentFolderIdRef,
     currentPathRef,
     loadEntries,
-    refreshCurrentPath
+    refreshCurrentPath,
+    upsertFileInCurrentFolder,
+    removeFileFromCurrentFolder
   } = useUploadBrowserEntries()
   const {
     folders: recycleFolders,
@@ -80,6 +82,12 @@ function UploadDashboardContent() {
     resolveActiveNameConflict
   } = useUploadQueue({
     initialConcurrency: 3,
+    onTaskFinalizeStart: file => {
+      upsertFileInCurrentFolder(file)
+    },
+    onTaskFinalizeAbort: file => {
+      removeFileFromCurrentFolder(file.id, file.folderId)
+    },
     onTaskDone: async file => {
       if (file.folderId === currentFolderIdRef.current) {
         await loadEntries(currentFolderIdRef.current)

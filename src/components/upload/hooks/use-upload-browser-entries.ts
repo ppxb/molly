@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 
 import { useUploadBrowserStore } from '@/components/upload/stores/upload-browser-store'
 import { getErrorMessage, listUploadEntriesRequest } from '@/lib/upload/client/api'
-import type { UploadBreadcrumbItem } from '@/lib/upload/shared'
+import type { UploadBreadcrumbItem, UploadedFileRecord } from '@/lib/upload/shared'
 
 function normalizeFolderID(folderId: string) {
   const normalized = folderId.trim()
@@ -77,6 +77,9 @@ export function useUploadBrowserEntries() {
 
   const currentFolderIdRef = useRef(currentFolderId)
   const currentPathRef = useRef(currentPath)
+  const breadcrumbsRef = useRef(breadcrumbs)
+  const foldersRef = useRef(folders)
+  const filesRef = useRef(files)
   const lastLoadRequestRef = useRef(0)
 
   useEffect(() => {
@@ -86,6 +89,18 @@ export function useUploadBrowserEntries() {
   useEffect(() => {
     currentPathRef.current = currentPath
   }, [currentPath])
+
+  useEffect(() => {
+    breadcrumbsRef.current = breadcrumbs
+  }, [breadcrumbs])
+
+  useEffect(() => {
+    foldersRef.current = folders
+  }, [folders])
+
+  useEffect(() => {
+    filesRef.current = files
+  }, [files])
 
   const loadEntries = useCallback(
     async (folderId: string) => {
@@ -162,6 +177,57 @@ export function useUploadBrowserEntries() {
     void loadEntries(currentFolderId)
   }, [currentFolderId, loadEntries])
 
+  const upsertFileInCurrentFolder = useCallback(
+    (file: UploadedFileRecord) => {
+      const targetFolderID = normalizeFolderID(file.folderId)
+      if (currentFolderIdRef.current !== targetFolderID) {
+        return false
+      }
+
+      const currentFiles = filesRef.current
+      const existingIndex = currentFiles.findIndex(item => item.id === file.id)
+      const nextFiles =
+        existingIndex >= 0 ? currentFiles.map(item => (item.id === file.id ? file : item)) : [file, ...currentFiles]
+
+      filesRef.current = nextFiles
+      setEntries({
+        folderId: currentFolderIdRef.current,
+        path: currentPathRef.current,
+        breadcrumbs: breadcrumbsRef.current,
+        folders: foldersRef.current,
+        files: nextFiles
+      })
+      return true
+    },
+    [setEntries]
+  )
+
+  const removeFileFromCurrentFolder = useCallback(
+    (fileID: string, folderID: string) => {
+      const targetFolderID = normalizeFolderID(folderID)
+      if (currentFolderIdRef.current !== targetFolderID) {
+        return false
+      }
+
+      const currentFiles = filesRef.current
+      const nextFiles = currentFiles.filter(item => item.id !== fileID)
+      if (nextFiles.length === currentFiles.length) {
+        return false
+      }
+
+      filesRef.current = nextFiles
+      setEntries({
+        folderId: currentFolderIdRef.current,
+        path: currentPathRef.current,
+        breadcrumbs: breadcrumbsRef.current,
+        folders: foldersRef.current,
+        files: nextFiles
+      })
+      return true
+    },
+    [setEntries]
+  )
+
   return {
     currentFolderId,
     currentPath,
@@ -175,6 +241,8 @@ export function useUploadBrowserEntries() {
     currentFolderIdRef,
     currentPathRef,
     loadEntries,
-    refreshCurrentPath
+    refreshCurrentPath,
+    upsertFileInCurrentFolder,
+    removeFileFromCurrentFolder
   }
 }

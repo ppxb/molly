@@ -20,7 +20,7 @@ function TaskItem({ task, onCancel, onPause, onContinue }: TaskItemProps) {
   const canToggle = shouldPause || task.status === 'paused' || task.status === 'error'
   const showProgress = task.status !== 'queued'
   const statusText =
-    task.status === 'running' && task.speedBytesPerSecond > 0
+    task.status === 'running' && task.stage === 'uploading' && task.speedBytesPerSecond > 0
       ? `${formatBytes(task.speedBytesPerSecond)}/s`
       : getTaskStatusText(task)
 

@@ -2,7 +2,6 @@ import type { FileUploadPartInfo } from '@/lib/upload/client/api'
 import {
   completeFileRequest,
   createWithFoldersFileRequest,
-  deleteFileRequest,
   getUploadURLFileRequest,
   searchFileRequest
 } from '@/lib/upload/client/api'
@@ -25,7 +24,7 @@ import type {
   UploadResumeState
 } from '@/lib/upload/client/upload/types'
 import { DEFAULT_MULTIPART_THRESHOLD } from '@/lib/upload/shared'
-import type { UploadStrategy } from '@/lib/upload/shared'
+import type { UploadStrategy, UploadedFileRecord } from '@/lib/upload/shared'
 
 export type {
   UploadFileInput,
@@ -117,23 +116,34 @@ function splitFileName(fileName: string) {
   }
 }
 
-async function resolveKeepBothFileName(folderID: string, fileName: string) {
-  const { baseName, extension } = splitFileName(fileName)
-  const normalizedBaseName = baseName.trim() || fileName
+function inferFileExtension(fileName: string) {
+  const { extension } = splitFileName(fileName)
+  return extension.replace('.', '').toLowerCase()
+}
 
-  for (let index = 1; index <= 9_999; index += 1) {
-    const candidate = `${normalizedBaseName}(${index})${extension}`
-    const searchResult = await searchFileRequest({
-      query: buildSearchQuery(folderID, candidate),
-      order_by: 'name ASC',
-      limit: 1
-    })
-    if (searchResult.items.length === 0) {
-      return candidate
-    }
+function mapPendingFileToUploadedFile(
+  input: UploadFileInput,
+  strategy: UploadStrategy,
+  fileID: string,
+  fileName: string
+): UploadedFileRecord {
+  const now = new Date().toISOString()
+  return {
+    id: fileID,
+    fileName,
+    fileExtension: inferFileExtension(fileName),
+    folderId: resolveTargetFolderID(input),
+    folderPath: input.folderPath?.trim() || '',
+    contentType: input.file.type || 'application/octet-stream',
+    fileSize: input.file.size,
+    fileHash: '',
+    fileSampleHash: '',
+    objectKey: '',
+    bucket: '',
+    strategy,
+    createdAt: now,
+    updatedAt: now
   }
-
-  throw new Error('Unable to generate a non-conflicting file name')
 }
 
 export async function uploadFile(input: UploadFileInput): Promise<UploadFileResult> {
@@ -152,6 +162,7 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
   const completedPartNumbers = new Set<number>()
   let uploadID = ''
   let fileID = ''
+  let resolvedFileName = input.file.name
   let rapidUpload = false
   let initialPartInfoList: FileUploadPartInfo[] = []
 
@@ -160,6 +171,7 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
     if (resumeState) {
       uploadID = resumeState.uploadId
       fileID = resumeState.fileId
+      resolvedFileName = input.file.name
       for (const partNumber of resumeState.completedPartNumbers) {
         completedPartNumbers.add(partNumber)
       }
@@ -167,7 +179,7 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
       input.onStageChange?.('uploading', 'Resuming upload...')
     } else {
       let uploadFileName = input.file.name
-      let checkNameMode: 'auto_rename' | 'refuse' = 'auto_rename'
+      let checkNameMode: 'auto_rename' | 'refuse' | 'overwrite' = 'auto_rename'
 
       input.onStageChange?.('checking', 'Checking if a file with the same name already exists...')
       const searchResult = await searchFileRequest({
@@ -198,14 +210,11 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
         }
 
         if (conflictAction === 'overwrite') {
-          input.onStageChange?.('checking', 'Removing existing file...')
-          await deleteFileRequest({
-            file_id: existingFile.file_id
-          })
-          checkNameMode = 'refuse'
+          // Aliyun semantics: create_with_folders handles replacement with check_name_mode=overwrite.
+          checkNameMode = 'overwrite'
         } else {
-          uploadFileName = await resolveKeepBothFileName(folderID, uploadFileName)
-          checkNameMode = 'refuse'
+          // Aliyun semantics: create_with_folders handles coexistence with check_name_mode=auto_rename.
+          checkNameMode = 'auto_rename'
         }
       }
 
@@ -232,6 +241,7 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
 
       uploadID = createResult.upload_id
       fileID = createResult.file_id
+      resolvedFileName = createResult.file_name || uploadFileName
       rapidUpload = Boolean(createResult.rapid_upload)
       initialPartInfoList = createResult.part_info_list ?? []
       input.onResumeStateChange?.(buildResumeState(uploadID, fileID, chunkSize, totalParts, completedPartNumbers))
@@ -302,7 +312,10 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
     }
 
     raiseIfAborted(input.signal)
-    input.onStageChange?.('finalizing', 'Completing upload...')
+    input.onStageChange?.('finalizing', 'Finalizing on server...')
+    if (fileID) {
+      input.onBeforeComplete?.(mapPendingFileToUploadedFile(input, strategy, fileID, resolvedFileName))
+    }
     const completed = await completeFileRequest({
       upload_id: uploadID,
       file_id: fileID
