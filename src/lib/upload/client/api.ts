@@ -352,6 +352,13 @@ export interface FileGetLatestAsyncTaskResponse {
   total_consumed_process: number
 }
 
+export interface FileGetFolderSizeInfoResponse {
+  size: number
+  folder_count: number
+  file_count: number
+  display_summary: string
+}
+
 export interface RecycleBinListItem {
   name: string
   type: 'file' | 'folder'
@@ -513,6 +520,7 @@ function listFileRequest(input: {
   drive_id?: string
   parent_file_id: string
   limit?: number
+  marker?: string
   all?: boolean
   url_expire_sec?: number
   image_thumbnail_process?: string
@@ -526,6 +534,7 @@ function listFileRequest(input: {
     parent_file_id: input.parent_file_id,
     drive_id: input.drive_id,
     limit: input.limit ?? 200,
+    marker: input.marker,
     all: input.all ?? false,
     url_expire_sec: input.url_expire_sec ?? 14400,
     image_thumbnail_process: input.image_thumbnail_process ?? 'image/resize,w_256/format,avif',
@@ -533,6 +542,24 @@ function listFileRequest(input: {
     video_thumbnail_process:
       input.video_thumbnail_process ?? 'video/snapshot,t_120000,f_jpg,m_lfit,w_256,ar_auto,m_fast',
     fields: input.fields ?? '*',
+    order_by: input.order_by ?? 'updated_at',
+    order_direction: input.order_direction ?? 'DESC'
+  })
+}
+
+export function listFileChildrenRequest(input: {
+  drive_id?: string
+  parent_file_id: string
+  limit?: number
+  marker?: string
+  order_by?: string
+  order_direction?: 'ASC' | 'DESC'
+}) {
+  return listFileRequest({
+    drive_id: input.drive_id,
+    parent_file_id: input.parent_file_id,
+    limit: input.limit ?? 200,
+    marker: input.marker,
     order_by: input.order_by ?? 'updated_at',
     order_direction: input.order_direction ?? 'DESC'
   })
@@ -649,6 +676,10 @@ export function updateFileRequest(input: {
 
 export function getLatestAsyncTaskRequest(input?: { drive_id?: string }) {
   return requestJSON<FileGetLatestAsyncTaskResponse>('/v1/file/get_latest_async_task', input ?? {})
+}
+
+export function getFolderSizeInfoRequest(input: { drive_id?: string; file_id: string }) {
+  return requestJSON<FileGetFolderSizeInfoResponse>('/v1/file/get_folder_size_info', input)
 }
 
 export function uploadBatchRequest(input: UploadBatchRequest) {

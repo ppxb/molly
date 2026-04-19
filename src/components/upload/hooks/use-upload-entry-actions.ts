@@ -1,4 +1,4 @@
-import { useCallback, useState, type MutableRefObject } from 'react'
+import { useCallback, useRef, useState, type MutableRefObject } from 'react'
 import { toast } from 'sonner'
 
 import { useUploadBrowserStore } from '@/components/upload/stores/upload-browser-store'
@@ -6,6 +6,7 @@ import {
   createBatchItemError,
   createFolderRequest,
   getErrorMessage,
+  getFolderSizeInfoRequest,
   getLatestAsyncTaskRequest,
   listMoveTargetsRequest,
   recycleBinTrashRequest,
@@ -34,10 +35,31 @@ interface TrashTarget {
   name: string
 }
 
+interface DetailsTarget {
+  id: string
+  type: 'file' | 'folder'
+  name: string
+  location: string
+  createdAt: string
+  updatedAt: string
+}
+
+interface FolderDetailsSummary {
+  totalBytes: number
+  fileCount: number
+  folderCount: number
+  displaySummary: string
+}
+
 interface UseUploadEntryActionsInput {
   currentFolderId: string
   currentFolderIdRef: MutableRefObject<string>
   loadEntries: (folderId: string) => Promise<void>
+}
+
+function toRootLocation(path: string) {
+  const normalized = path.trim().replace(/^\/+|\/+$/g, '')
+  return normalized ? `root/${normalized}` : 'root'
 }
 
 export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
@@ -58,6 +80,10 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
   const [isMoving, setIsMoving] = useState(false)
   const [trashTarget, setTrashTarget] = useState<TrashTarget | null>(null)
   const [isTrashing, setIsTrashing] = useState(false)
+  const [detailsTarget, setDetailsTarget] = useState<DetailsTarget | null>(null)
+  const [isLoadingDetailsSummary, setIsLoadingDetailsSummary] = useState(false)
+  const [folderDetailsSummary, setFolderDetailsSummary] = useState<FolderDetailsSummary | null>(null)
+  const detailsSummaryRequestIDRef = useRef(0)
 
   const createFolder = useCallback(
     async (folderName: string) => {
@@ -334,6 +360,62 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
     })
   }, [])
 
+  const onViewDetailsFile = useCallback((file: UploadedFileRecord) => {
+    detailsSummaryRequestIDRef.current += 1
+    setFolderDetailsSummary(null)
+    setIsLoadingDetailsSummary(false)
+    setDetailsTarget({
+      id: file.id,
+      type: 'file',
+      name: file.fileName,
+      location: toRootLocation(file.folderPath),
+      createdAt: file.createdAt,
+      updatedAt: file.updatedAt
+    })
+  }, [])
+
+  const onViewDetailsFolder = useCallback((folder: UploadFolderRecord) => {
+    const requestID = detailsSummaryRequestIDRef.current + 1
+    detailsSummaryRequestIDRef.current = requestID
+
+    setFolderDetailsSummary(null)
+    setIsLoadingDetailsSummary(true)
+    setDetailsTarget({
+      id: folder.id,
+      type: 'folder',
+      name: folder.folderName,
+      location: toRootLocation(folder.parentPath),
+      createdAt: folder.createdAt,
+      updatedAt: folder.updatedAt
+    })
+
+    void (async () => {
+      try {
+        const summary = await getFolderSizeInfoRequest({
+          file_id: folder.id
+        })
+        if (detailsSummaryRequestIDRef.current !== requestID) {
+          return
+        }
+        setFolderDetailsSummary({
+          totalBytes: summary.size,
+          fileCount: summary.file_count,
+          folderCount: summary.folder_count,
+          displaySummary: summary.display_summary
+        })
+      } catch (error) {
+        if (detailsSummaryRequestIDRef.current !== requestID) {
+          return
+        }
+        toast.error(getErrorMessage(error, 'Failed to load folder details'))
+      } finally {
+        if (detailsSummaryRequestIDRef.current === requestID) {
+          setIsLoadingDetailsSummary(false)
+        }
+      }
+    })()
+  }, [])
+
   const onRenameDialogOpenChange = useCallback((open: boolean) => {
     if (!open) {
       setRenameTarget(null)
@@ -349,6 +431,15 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
   const onTrashDialogOpenChange = useCallback((open: boolean) => {
     if (!open) {
       setTrashTarget(null)
+    }
+  }, [])
+
+  const onDetailsDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      detailsSummaryRequestIDRef.current += 1
+      setDetailsTarget(null)
+      setFolderDetailsSummary(null)
+      setIsLoadingDetailsSummary(false)
     }
   }, [])
 
@@ -376,6 +467,12 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
     submitTrash,
     onTrashDialogOpenChange,
     onTrashFile,
-    onTrashFolder
+    onTrashFolder,
+    detailsTarget,
+    isLoadingDetailsSummary,
+    folderDetailsSummary,
+    onDetailsDialogOpenChange,
+    onViewDetailsFile,
+    onViewDetailsFolder
   }
 }

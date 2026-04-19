@@ -8,6 +8,7 @@ import { DeleteForeverDialog } from '@/components/upload/delete-forever-dialog'
 import { MoveEntryDialog } from '@/components/upload/move-entry-dialog'
 import { RenameEntryDialog } from '@/components/upload/rename-entry-dialog'
 import { TrashEntryDialog } from '@/components/upload/trash-entry-dialog'
+import { UploadEntryDetailsDialog } from '@/components/upload/upload-entry-details-dialog'
 import { UploadFloatingPanel } from '@/components/upload-floating-panel'
 import { useUploadBrowserEntries } from '@/components/upload/hooks/use-upload-browser-entries'
 import { useUploadEntryActions } from '@/components/upload/hooks/use-upload-entry-actions'
@@ -110,7 +111,13 @@ function UploadDashboardContent() {
     submitTrash,
     onTrashDialogOpenChange,
     onTrashFile,
-    onTrashFolder
+    onTrashFolder,
+    detailsTarget,
+    isLoadingDetailsSummary,
+    folderDetailsSummary,
+    onDetailsDialogOpenChange,
+    onViewDetailsFile,
+    onViewDetailsFolder
   } = useUploadEntryActions({
     currentFolderId,
     currentFolderIdRef,
@@ -208,9 +215,11 @@ function UploadDashboardContent() {
             onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
             onRenameFile={onRenameFile}
             onMoveFile={onMoveFile}
+            onViewDetailsFile={onViewDetailsFile}
             onTrashFile={onTrashFile}
             onRenameFolder={onRenameFolder}
             onMoveFolder={onMoveFolder}
+            onViewDetailsFolder={onViewDetailsFolder}
             onTrashFolder={onTrashFolder}
           />
 
@@ -260,6 +269,14 @@ function UploadDashboardContent() {
             isSubmitting={isTrashing}
             onOpenChange={onTrashDialogOpenChange}
             onConfirm={submitTrash}
+          />
+
+          <UploadEntryDetailsDialog
+            open={detailsTarget !== null}
+            target={detailsTarget}
+            isLoadingFolderSummary={isLoadingDetailsSummary}
+            folderSummary={folderDetailsSummary}
+            onOpenChange={onDetailsDialogOpenChange}
           />
 
           <UploadNameConflictDialog

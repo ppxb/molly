@@ -19,9 +19,11 @@ interface UploadedFilesOverviewProps {
   onOpenFile: (fileId: string, mode: 'preview' | 'download') => void
   onRenameFile: (file: UploadedFileRecord) => void
   onMoveFile: (file: UploadedFileRecord) => void
+  onViewDetailsFile: (file: UploadedFileRecord) => void
   onTrashFile: (file: UploadedFileRecord) => void
   onRenameFolder: (folder: UploadFolderRecord) => void
   onMoveFolder: (folder: UploadFolderRecord) => void
+  onViewDetailsFolder: (folder: UploadFolderRecord) => void
   onTrashFolder: (folder: UploadFolderRecord) => void
   onCreateFolder: () => void
   onUploadFiles?: () => void
@@ -38,9 +40,11 @@ export function UploadedFilesOverview({
   onOpenFile,
   onRenameFile,
   onMoveFile,
+  onViewDetailsFile,
   onTrashFile,
   onRenameFolder,
   onMoveFolder,
+  onViewDetailsFolder,
   onTrashFolder,
   onCreateFolder,
   onUploadFiles
@@ -52,7 +56,7 @@ export function UploadedFilesOverview({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle>File Manager</CardTitle>
-              <CardDescription>Double-click folders to open. Right-click files or folders for actions.</CardDescription>
+              <CardDescription>Single-click folders to open. Right-click files or folders for actions.</CardDescription>
             </div>
             <Button variant="outline" onClick={onRefresh} disabled={isLoading}>
               {isLoading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCcw className="size-4" />}
@@ -74,9 +78,11 @@ export function UploadedFilesOverview({
                   onOpenFile={onOpenFile}
                   onRenameFile={onRenameFile}
                   onMoveFile={onMoveFile}
+                  onViewDetailsFile={onViewDetailsFile}
                   onTrashFile={onTrashFile}
                   onRenameFolder={onRenameFolder}
                   onMoveFolder={onMoveFolder}
+                  onViewDetailsFolder={onViewDetailsFolder}
                   onTrashFolder={onTrashFolder}
                 />
               </div>
