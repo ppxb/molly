@@ -11,8 +11,6 @@ import { FilesSection, RecycleBinSection, useEntryActions, useFileBrowser } from
 import { getErrorMessage, getFileAccessUrlRequest } from '@/lib/upload/client/api'
 import { scheduleHashWorkerPrewarm } from '@/lib/upload/client/hash'
 
-import { ThemeToggle } from '../toggle-theme'
-
 function UploadDashboardContent() {
   const [activeView, setActiveView] = useState<UploadDashboardView>('files')
   const quickUploadInputRef = useRef<HTMLInputElement>(null)
@@ -187,7 +185,6 @@ function UploadDashboardContent() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
       <input ref={quickUploadInputRef} type="file" multiple className="hidden" onChange={onQuickUploadChange} />
-      <ThemeToggle />
       <UploadDashboardTabs activeView={activeView} onChange={setActiveView} />
 
       {activeView === 'files' ? (
