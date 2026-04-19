@@ -11,13 +11,13 @@ import {
 } from '@/components/ui/breadcrumb'
 import type { UploadBreadcrumbItem } from '@/lib/upload/shared'
 
-interface UploadBreadcrumbNavProps {
+interface BreadcrumbNavProps {
   currentFolderId: string
   breadcrumbs: UploadBreadcrumbItem[]
   onNavigate: (folderId: string) => void
 }
 
-export function UploadBreadcrumbNav({ currentFolderId, breadcrumbs, onNavigate }: UploadBreadcrumbNavProps) {
+export function BreadcrumbNav({ currentFolderId, breadcrumbs, onNavigate }: BreadcrumbNavProps) {
   return (
     <div className="border bg-muted/30 p-2">
       <Breadcrumb>

@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatDateTime } from '@/lib/utils'
 
-interface EntryDetailsTarget {
+export interface EntryDetailsTarget {
   id: string
   type: 'file' | 'folder'
   name: string
@@ -11,7 +11,7 @@ interface EntryDetailsTarget {
   hash?: string
 }
 
-interface FolderDetailsSummary {
+export interface FolderDetailsSummary {
   size: number
   fileCount: number
   folderCount: number
