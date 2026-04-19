@@ -1,16 +1,16 @@
 import type { UploadNameConflictAction } from '@/lib/upload/client/upload/types'
 import type { UploadFolderRecord } from '@/lib/upload/shared'
 
-import { CreateFolderDialog } from '@/components/upload/create-folder-dialog'
-import { MoveEntryDialog } from '@/components/upload/move-entry-dialog'
-import { RenameEntryDialog } from '@/components/upload/rename-entry-dialog'
-import { TrashEntryDialog } from '@/components/upload/trash-entry-dialog'
+import { CreateFolderDialog } from '@/features/file-browser/components/create-folder-dialog'
+import { MoveEntryDialog } from '@/features/file-browser/components/move-item-dialog'
+import { RenameEntryDialog } from '@/features/file-browser/components/rename-item-dialog'
+import { TrashEntryDialog } from '@/features/file-browser/components/trash-item-dialog'
 import {
   type EntryDetailsTarget,
   type FolderDetailsSummary,
   UploadEntryDetailsDialog
-} from '@/components/upload/upload-entry-details-dialog'
-import { UploadNameConflictDialog } from '@/components/upload/upload-name-conflict-dialog'
+} from '@/features/file-browser/components/item-details-dialog'
+import { UploadNameConflictDialog } from '@/features/file-browser/components/name-conflict-dialog'
 
 interface RenameTarget {
   id: string

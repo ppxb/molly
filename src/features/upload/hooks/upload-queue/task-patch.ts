@@ -1,4 +1,4 @@
-import type { UploadQueueTask } from '@/components/upload/upload-queue-types'
+import type { UploadQueueTask } from '@/features/upload/upload-queue-types'
 import type { UploadStage, UploadStrategy, UploadedFileRecord } from '@/lib/upload/shared'
 import type { UploadResumeState } from '@/lib/upload/client/upload/types'
 

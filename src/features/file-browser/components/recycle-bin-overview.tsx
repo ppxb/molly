@@ -3,7 +3,7 @@ import { Loader2, RefreshCcw, Trash2Icon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { EntryBrowserContent } from '@/features/file-browser'
+import { EntryBrowserContent } from '@/features/file-browser/components/entry-browser-content'
 import type {
   RecycleBinFileRecord,
   RecycleBinFolderRecord,

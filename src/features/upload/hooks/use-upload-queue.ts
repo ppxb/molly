@@ -1,23 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { UploadQueueTask } from '@/components/upload/upload-queue-types'
-import { buildUploadQueueOverview } from '@/components/upload/hooks/upload-queue/overview'
+import type { UploadQueueTask } from '@/features/upload/upload-queue-types'
+import { buildUploadQueueOverview } from '@/features/upload/hooks/upload-queue/overview'
 import {
   clearPersistedQueueTasks,
   loadPersistedQueueTasks,
   persistQueueTasks
-} from '@/components/upload/hooks/upload-queue/persistence'
-import { pickQueuedTaskIDs } from '@/components/upload/hooks/upload-queue/scheduling'
+} from '@/features/upload/hooks/upload-queue/persistence'
+import { pickQueuedTaskIDs } from '@/features/upload/hooks/upload-queue/scheduling'
 import {
   applyTaskPatch,
   buildPausedTaskState,
   type UpdateTaskPatch
-} from '@/components/upload/hooks/upload-queue/task-patch'
+} from '@/features/upload/hooks/upload-queue/task-patch'
 import {
   buildQueuedTaskState,
   createTaskFingerprint,
   createTaskFromFile
-} from '@/components/upload/hooks/upload-queue/task-factory'
+} from '@/features/upload/hooks/upload-queue/task-factory'
 import { getErrorMessage } from '@/lib/upload/client/api'
 import { uploadRuntimeConfig } from '@/lib/upload/client/runtime-config'
 import { uploadFile } from '@/lib/upload/client/uploader'

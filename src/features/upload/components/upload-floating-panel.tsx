@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { CircleOffIcon, CloudUploadIcon, PauseIcon, PlayIcon, XIcon } from 'lucide-react'
 
 import { IconActionButton } from '@/components/icon-action-button'
-import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
+import type { UploadQueueOverview, UploadQueueTask } from '@/features/upload/upload-queue-types'
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatBytes, getTaskStatusText } from '@/lib/utils'

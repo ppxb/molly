@@ -1,4 +1,4 @@
-import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
+import type { UploadQueueOverview, UploadQueueTask } from '@/features/upload/upload-queue-types'
 
 export function buildUploadQueueOverview(tasks: UploadQueueTask[], isQueueActive: boolean): UploadQueueOverview {
   let runningTasks = 0

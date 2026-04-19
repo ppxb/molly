@@ -1,4 +1,4 @@
-import type { UploadQueueTask } from '@/components/upload/upload-queue-types'
+import type { UploadQueueTask } from '@/features/upload/upload-queue-types'
 
 export function pickQueuedTaskIDs(tasks: UploadQueueTask[], slots: number, launchingTaskIDs: Set<string>) {
   if (slots <= 0) {

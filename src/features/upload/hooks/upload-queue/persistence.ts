@@ -1,4 +1,4 @@
-import type { UploadQueueTask } from '@/components/upload/upload-queue-types'
+import type { UploadQueueTask } from '@/features/upload/upload-queue-types'
 
 const DB_NAME = 'molly-upload-queue'
 const DB_VERSION = 1

@@ -58,7 +58,7 @@ function mapRecycleFile(item: RecycleBinListItem): RecycleBinFileRecord {
   }
 }
 
-export function useUploadRecycleBinEntries() {
+export function useRecycleBinEntries() {
   const [folders, setFolders] = useState<RecycleBinFolderRecord[]>([])
   const [files, setFiles] = useState<RecycleBinFileRecord[]>([])
   const [nextMarker, setNextMarker] = useState('')

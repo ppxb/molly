@@ -1,4 +1,4 @@
-import { UploadFabMenu } from '@/components/upload-fab-menu'
+import { UploadFabMenu } from '@/features/upload/components/upload-fab-menu'
 import { FileBrowser, type FileBrowserDialogsProps, type FileBrowserViewProps } from '@/features/file-browser'
 
 interface FilesSectionProps {

@@ -1,13 +1,18 @@
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { useUploadQueue } from '@/components/upload/hooks/use-upload-queue'
-import { useUploadRecycleBinActions } from '@/components/upload/hooks/use-upload-recyclebin-actions'
-import { useUploadRecycleBinEntries } from '@/components/upload/hooks/use-upload-recyclebin-entries'
-import { UploadDashboardTabs, type UploadDashboardView } from '@/components/upload/upload-dashboard-tabs'
-import { UploadPanelSection } from '@/components/upload/upload-panel-section'
-import { UploadBrowserStoreProvider } from '@/components/upload/stores/upload-browser-store'
-import { FilesSection, RecycleBinSection, useEntryActions, useFileBrowser } from '@/features/file-browser'
+import {
+  FilesSection,
+  RecycleBinSection,
+  UploadBrowserStoreProvider,
+  useEntryActions,
+  useFileBrowser
+} from '@/features/file-browser'
+import { useRecycleBinActions } from '@/features/file-browser/hooks/use-recycle-bin-actions'
+import { useRecycleBinEntries } from '@/features/file-browser/hooks/use-recycle-bin-entries'
+import { UploadDashboardTabs, type UploadDashboardView } from '@/features/upload/components/upload-dashboard-tabs'
+import { UploadPanelSection } from '@/features/upload/components/upload-panel-section'
+import { useUploadQueue } from '@/features/upload/hooks/use-upload-queue'
 import { getErrorMessage, getFileAccessUrlRequest } from '@/lib/upload/client/api'
 import { scheduleHashWorkerPrewarm } from '@/lib/upload/client/hash'
 
@@ -46,7 +51,7 @@ function UploadDashboardContent() {
     loadRecycleBinEntries,
     removeEntryOptimistic,
     clearAllOptimistic
-  } = useUploadRecycleBinEntries()
+  } = useRecycleBinEntries()
 
   const {
     isRestoring,
@@ -63,7 +68,7 @@ function UploadDashboardContent() {
     submitClearRecycleBin,
     onDeleteForeverDialogOpenChange,
     onClearDialogOpenChange
-  } = useUploadRecycleBinActions({
+  } = useRecycleBinActions({
     refresh: loadRecycleBinEntries,
     removeEntryOptimistic,
     clearAllOptimistic

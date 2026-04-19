@@ -21,7 +21,7 @@ interface UseUploadRecycleBinActionsInput {
   clearAllOptimistic: () => () => void
 }
 
-export function useUploadRecycleBinActions(input: UseUploadRecycleBinActionsInput) {
+export function useRecycleBinActions(input: UseUploadRecycleBinActionsInput) {
   const { refresh, removeEntryOptimistic, clearAllOptimistic } = input
   const [isRestoring, setIsRestoring] = useState(false)
   const [isDeletingForever, setIsDeletingForever] = useState(false)

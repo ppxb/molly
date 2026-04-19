@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 import { AppLayout, type AppPageKey } from '@/components/app-layout'
 import { Providers } from '@/components/providers'
-import { UploadDashboard } from '@/components/upload/upload-dashboard'
+import { UploadDashboard } from '@/features/upload'
 
 export function App() {
   const [activePage, setActivePage] = useState<AppPageKey>('files')

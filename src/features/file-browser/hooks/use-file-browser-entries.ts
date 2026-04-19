@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { useUploadBrowserStore } from '@/components/upload/stores/upload-browser-store'
+import { useUploadBrowserStore } from '@/features/file-browser/store/file-browser-store'
 import { getErrorMessage, listUploadEntriesRequest, type FileListOrderBy } from '@/lib/upload/client/api'
 import type { UploadBreadcrumbItem, UploadedFileRecord } from '@/lib/upload/shared'
 
@@ -64,7 +64,7 @@ function resolveOptimisticLocation(input: {
   }
 }
 
-export function useUploadBrowserEntries() {
+export function useFileBrowserEntries() {
   const currentFolderId = useUploadBrowserStore(state => state.currentFolderId)
   const currentPath = useUploadBrowserStore(state => state.currentPath)
   const breadcrumbs = useUploadBrowserStore(state => state.breadcrumbs)

@@ -1,6 +1,6 @@
-import { ClearRecycleBinDialog } from '@/components/upload/clear-recyclebin-dialog'
-import { DeleteForeverDialog } from '@/components/upload/delete-forever-dialog'
-import { UploadRecycleBinOverview } from '@/components/upload/upload-recyclebin-overview'
+import { ClearRecycleBinDialog } from '@/features/file-browser/components/clear-recycle-bin-dialog'
+import { DeleteForeverDialog } from '@/features/file-browser/components/delete-forever-dialog'
+import { UploadRecycleBinOverview } from '@/features/file-browser/components/recycle-bin-overview'
 import type {
   RecycleBinFileRecord,
   RecycleBinFolderRecord,

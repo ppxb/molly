@@ -38,15 +38,15 @@ interface FileBrowserContextMenuActionsProps {
 }
 
 const orderByLabelMap: Record<FileListOrderBy, string> = {
-  name: 'Name',
-  created_at: 'Created Time',
-  updated_at: 'Updated Time',
-  size: 'File Size'
+  name: '名称',
+  created_at: '创建时间',
+  updated_at: '更新时间',
+  size: '文件大小'
 }
 
 const orderDirectionLabelMap: Record<'ASC' | 'DESC', string> = {
-  ASC: 'Ascending',
-  DESC: 'Descending'
+  ASC: '升序',
+  DESC: '降序'
 }
 
 export function FileBrowserToolbar({
@@ -62,12 +62,7 @@ export function FileBrowserToolbar({
 }: FileBrowserToolbarProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <div className="text-xl font-semibold">{`Total ${totalCount} Items`}</div>
-        <div className="text-sm text-muted-foreground">
-          Single-click folders to open. Right-click files or folders for actions.
-        </div>
-      </div>
+      <div className="text-xl font-semibold">{`共 ${totalCount} 项`}</div>
 
       <div className="flex flex-wrap items-center gap-2">
         <DropdownMenu>

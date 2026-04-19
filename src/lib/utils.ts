@@ -1,4 +1,4 @@
-import type { UploadQueueTask } from '@/components/upload/upload-queue-types'
+import type { UploadQueueTask } from '@/features/upload/upload-queue-types'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 

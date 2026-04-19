@@ -1,4 +1,4 @@
-import { useUploadBrowserStore } from '@/components/upload/stores/upload-browser-store'
+import { useUploadBrowserStore } from '@/features/file-browser/store/file-browser-store'
 
 import { useCreateFolderAction } from './entry-actions/use-create-folder-action'
 import { useEntryDetailsAction } from './entry-actions/use-entry-details-action'

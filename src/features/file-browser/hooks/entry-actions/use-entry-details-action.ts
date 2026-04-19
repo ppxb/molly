@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import type { EntryDetailsTarget, FolderDetailsSummary } from '@/components/upload/upload-entry-details-dialog'
+import type { EntryDetailsTarget, FolderDetailsSummary } from '@/features/file-browser/components/item-details-dialog'
 import { getErrorMessage, getFolderSizeInfoRequest } from '@/lib/upload/client/api'
 import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/upload/shared'
 

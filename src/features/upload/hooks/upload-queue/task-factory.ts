@@ -1,4 +1,4 @@
-import type { UploadQueueTask } from '@/components/upload/upload-queue-types'
+import type { UploadQueueTask } from '@/features/upload/upload-queue-types'
 import { normalizeFolderPath } from '@/lib/upload/path'
 
 export function createTaskFingerprint(file: File, folderId: string) {

@@ -1,4 +1,4 @@
-import { UploadFloatingPanel, type UploadFloatingPanelProps } from '@/components/upload-floating-panel'
+import { UploadFloatingPanel, type UploadFloatingPanelProps } from '@/features/upload/components/upload-floating-panel'
 
 interface UploadPanelSectionProps extends Omit<UploadFloatingPanelProps, 'onRequestClose'> {
   isVisible: boolean
