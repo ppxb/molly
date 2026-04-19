@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import { CircleOffIcon, PauseIcon, PlayIcon, XIcon } from 'lucide-react'
+import { CircleOffIcon, CloudUploadIcon, PauseIcon, PlayIcon, XIcon } from 'lucide-react'
 
 import { IconActionButton } from '@/components/icon-action-button'
 import type { UploadQueueOverview, UploadQueueTask } from '@/components/upload/upload-queue-types'
-import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatBytes, getTaskStatusText } from '@/lib/utils'
@@ -107,11 +106,11 @@ export function UploadFloatingPanel({
       <div className="overflow-hidden border bg-background shadow-md">
         <div className="p-3" onClick={() => setCollapsed(previous => !previous)}>
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <p className="text-sm">{overview.overallStatusText}</p>
-              <Badge variant={overview.runningTasks > 0 ? 'destructive' : 'secondary'}>
-                Remaining {overview.remainingTasks}
-              </Badge>
+            <div className="flex items-center gap-2 text-xs">
+              <CloudUploadIcon className="size-4" />
+              <p className="">{overview.overallStatusText}</p>
+              <div className="h-1 w-1 bg-foreground"></div>
+              <span>剩余 {overview.remainingTasks} 项</span>
             </div>
 
             <div className="flex items-center gap-1" onClick={event => event.stopPropagation()}>

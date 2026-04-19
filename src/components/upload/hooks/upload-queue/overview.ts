@@ -37,17 +37,17 @@ export function buildUploadQueueOverview(tasks: UploadQueueTask[], isQueueActive
   let overallStatusText = 'No upload tasks'
   if (totalTasks > 0) {
     if (runningTasks > 0) {
-      overallStatusText = 'Uploading'
+      overallStatusText = '正在上传'
     } else if (remainingTasks === 0) {
-      overallStatusText = 'All uploads completed'
+      overallStatusText = '上传完成'
     } else if (!isQueueActive || pausedTasks > 0) {
-      overallStatusText = 'Uploads paused'
+      overallStatusText = '上传已暂停'
     } else if (errorTasks > 0 && queuedTasks === 0) {
-      overallStatusText = 'Upload errors'
+      overallStatusText = '上传错误'
     } else if (queuedTasks > 0) {
-      overallStatusText = 'Waiting to upload'
+      overallStatusText = '等待上传'
     } else {
-      overallStatusText = 'Uploads paused'
+      overallStatusText = '上传已暂停'
     }
   }
 

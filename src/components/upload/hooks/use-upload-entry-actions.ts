@@ -38,6 +38,7 @@ interface TrashTarget {
 interface DetailsTarget {
   id: string
   type: 'file' | 'folder'
+  hash?: string
   name: string
   location: string
   createdAt: string
@@ -367,6 +368,7 @@ export function useUploadEntryActions(input: UseUploadEntryActionsInput) {
     setDetailsTarget({
       id: file.id,
       type: 'file',
+      hash: file.fileHash,
       name: file.fileName,
       location: toRootLocation(file.folderPath),
       createdAt: file.createdAt,

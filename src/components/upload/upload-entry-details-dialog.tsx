@@ -8,6 +8,7 @@ interface EntryDetailsTarget {
   location: string
   createdAt: string
   updatedAt: string
+  hash?: string
 }
 
 interface FolderDetailsSummary {
@@ -63,6 +64,7 @@ export function UploadEntryDetailsDialog({
         <div className="space-y-3">
           <DetailsRow label={isFolder ? '文件夹名' : '文件名'} value={target.name} />
           {isFolder && <DetailsRow label="文件夹信息" value={getFolderInfo(isLoadingFolderSummary, folderSummary)} />}
+          {target.hash && <DetailsRow label="文件哈希" value={target.hash} />}
           <DetailsRow label="文件位置" value={target.location} />
           <DetailsRow label="云端创建时间" value={formatDateTime(target.createdAt)} />
           <DetailsRow label="最后修改时间" value={formatDateTime(target.updatedAt)} />
