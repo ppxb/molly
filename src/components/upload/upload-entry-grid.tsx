@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import {
   ArrowDownToLine,
   FileArchiveIcon,
@@ -20,11 +21,12 @@ import {
 } from '@/components/ui/context-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/upload/shared'
-import { formatDateTime } from '@/lib/utils'
+import { formatBytes, formatDateTime } from '@/lib/utils'
 
 interface UploadEntryGridProps {
   folders: UploadFolderRecord[]
   files: UploadedFileRecord[]
+  viewMode?: 'grid' | 'table'
   onNavigate?: (folderId: string) => void
   onOpenFile?: (fileId: string, mode: 'preview' | 'download') => void
   onRenameFile?: (file: UploadedFileRecord) => void
@@ -84,9 +86,17 @@ function NameWithTooltip({ value }: { value: string }) {
   )
 }
 
-function FolderEntryCard({
+function EntryNameCell({ icon, value }: { icon: ReactNode; value: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <span className="shrink-0">{icon}</span>
+      <span className="truncate text-sm font-medium">{value}</span>
+    </div>
+  )
+}
+
+function FolderMenuContent({
   folder,
-  onNavigate,
   onRename,
   onMove,
   onViewDetails,
@@ -95,7 +105,6 @@ function FolderEntryCard({
   onDeleteForever
 }: {
   folder: UploadFolderRecord
-  onNavigate?: (folderId: string) => void
   onRename?: (folder: UploadFolderRecord) => void
   onMove?: (folder: UploadFolderRecord) => void
   onViewDetails?: (folder: UploadFolderRecord) => void
@@ -103,74 +112,50 @@ function FolderEntryCard({
   onRestore?: (folder: UploadFolderRecord) => void
   onDeleteForever?: (folder: UploadFolderRecord) => void
 }) {
-  const canOpen = Boolean(onNavigate)
   const canRename = Boolean(onRename)
   const canMove = Boolean(onMove)
   const canViewDetails = Boolean(onViewDetails)
   const canTrash = Boolean(onTrash)
   const canRestore = Boolean(onRestore)
   const canDeleteForever = Boolean(onDeleteForever)
-  const hasBaseActions = canOpen || canRename || canMove || canViewDetails
-  const hasTrashAction = canTrash
-  const hasAnyAction = hasBaseActions || hasTrashAction || canRestore || canDeleteForever
+  const hasBaseActions = canRename || canMove || canViewDetails
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <button
-          type="button"
-          className="group flex h-40 flex-col items-center justify-center gap-3 border p-4 text-left transition hover:bg-muted/40"
-          onClick={() => onNavigate?.(folder.id)}
-        >
-          <FolderIcon className="size-9 text-amber-500" />
-          <NameWithTooltip value={folder.folderName} />
-          <p className="font-mono text-xs text-muted-foreground">{formatDateTime(folder.updatedAt)}</p>
-        </button>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        {(canRename || canMove || canViewDetails) && (
-          <>
-            {canRename ? <ContextMenuItem onSelect={() => onRename?.(folder)}>重命名</ContextMenuItem> : null}
-            {canMove ? <ContextMenuItem onSelect={() => onMove?.(folder)}>移动</ContextMenuItem> : null}
-            {canViewDetails ? (
-              <ContextMenuItem onSelect={() => onViewDetails?.(folder)}>查看详细信息</ContextMenuItem>
-            ) : null}
-          </>
-        )}
+    <ContextMenuContent>
+      {canRename ? <ContextMenuItem onSelect={() => onRename?.(folder)}>Rename</ContextMenuItem> : null}
+      {canMove ? <ContextMenuItem onSelect={() => onMove?.(folder)}>Move</ContextMenuItem> : null}
+      {canViewDetails ? <ContextMenuItem onSelect={() => onViewDetails?.(folder)}>View Details</ContextMenuItem> : null}
 
-        {canTrash ? (
-          <>
-            {hasBaseActions ? <ContextMenuSeparator /> : null}
-            <ContextMenuItem variant="destructive" onSelect={() => onTrash?.(folder)}>
-              <Trash2Icon className="size-3.5" />
-              放入回收站
-            </ContextMenuItem>
-          </>
-        ) : null}
+      {canTrash ? (
+        <>
+          {hasBaseActions ? <ContextMenuSeparator /> : null}
+          <ContextMenuItem variant="destructive" onSelect={() => onTrash?.(folder)}>
+            <Trash2Icon className="size-3.5" />
+            Move To Recycle Bin
+          </ContextMenuItem>
+        </>
+      ) : null}
 
-        {canRestore ? (
-          <>
-            {hasBaseActions || hasTrashAction ? <ContextMenuSeparator /> : null}
-            <ContextMenuItem onSelect={() => onRestore?.(folder)}>还原</ContextMenuItem>
-          </>
-        ) : null}
+      {canRestore ? (
+        <>
+          {hasBaseActions || canTrash ? <ContextMenuSeparator /> : null}
+          <ContextMenuItem onSelect={() => onRestore?.(folder)}>Restore</ContextMenuItem>
+        </>
+      ) : null}
 
-        {canDeleteForever ? (
-          <>
-            {hasBaseActions || hasTrashAction || canRestore ? <ContextMenuSeparator /> : null}
-            <ContextMenuItem variant="destructive" onSelect={() => onDeleteForever?.(folder)}>
-              删除
-            </ContextMenuItem>
-          </>
-        ) : null}
-
-        {!hasAnyAction ? <ContextMenuItem disabled>No actions available</ContextMenuItem> : null}
-      </ContextMenuContent>
-    </ContextMenu>
+      {canDeleteForever ? (
+        <>
+          {hasBaseActions || canTrash || canRestore ? <ContextMenuSeparator /> : null}
+          <ContextMenuItem variant="destructive" onSelect={() => onDeleteForever?.(folder)}>
+            Delete Forever
+          </ContextMenuItem>
+        </>
+      ) : null}
+    </ContextMenuContent>
   )
 }
 
-function FileEntryCard({
+function FileMenuContent({
   file,
   onOpenFile,
   onRename,
@@ -197,9 +182,113 @@ function FileEntryCard({
   const canRestore = Boolean(onRestore)
   const canDeleteForever = Boolean(onDeleteForever)
   const hasBaseActions = canOpen || canRename || canMove || canViewDetails
-  const hasTrashAction = canTrash
-  const hasAnyAction = hasBaseActions || hasTrashAction || canRestore || canDeleteForever
 
+  return (
+    <ContextMenuContent>
+      {canOpen ? (
+        <ContextMenuItem onSelect={() => onOpenFile?.(file.id, 'download')}>
+          <ArrowDownToLine className="size-3.5" />
+          Download
+        </ContextMenuItem>
+      ) : null}
+
+      {canRename ? <ContextMenuItem onSelect={() => onRename?.(file)}>Rename</ContextMenuItem> : null}
+      {canMove ? <ContextMenuItem onSelect={() => onMove?.(file)}>Move</ContextMenuItem> : null}
+      {canViewDetails ? <ContextMenuItem onSelect={() => onViewDetails?.(file)}>View Details</ContextMenuItem> : null}
+
+      {canTrash ? (
+        <>
+          {hasBaseActions ? <ContextMenuSeparator /> : null}
+          <ContextMenuItem variant="destructive" onSelect={() => onTrash?.(file)}>
+            <Trash2Icon className="size-3.5" />
+            Move To Recycle Bin
+          </ContextMenuItem>
+        </>
+      ) : null}
+
+      {canRestore ? (
+        <>
+          {hasBaseActions || canTrash ? <ContextMenuSeparator /> : null}
+          <ContextMenuItem onSelect={() => onRestore?.(file)}>Restore</ContextMenuItem>
+        </>
+      ) : null}
+
+      {canDeleteForever ? (
+        <>
+          {hasBaseActions || canTrash || canRestore ? <ContextMenuSeparator /> : null}
+          <ContextMenuItem variant="destructive" onSelect={() => onDeleteForever?.(file)}>
+            Delete Forever
+          </ContextMenuItem>
+        </>
+      ) : null}
+    </ContextMenuContent>
+  )
+}
+
+function FolderEntryCard({
+  folder,
+  onNavigate,
+  onRename,
+  onMove,
+  onViewDetails,
+  onTrash,
+  onRestore,
+  onDeleteForever
+}: {
+  folder: UploadFolderRecord
+  onNavigate?: (folderId: string) => void
+  onRename?: (folder: UploadFolderRecord) => void
+  onMove?: (folder: UploadFolderRecord) => void
+  onViewDetails?: (folder: UploadFolderRecord) => void
+  onTrash?: (folder: UploadFolderRecord) => void
+  onRestore?: (folder: UploadFolderRecord) => void
+  onDeleteForever?: (folder: UploadFolderRecord) => void
+}) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <button
+          type="button"
+          className="group flex h-40 flex-col items-center justify-center gap-3 border p-4 text-left transition hover:bg-muted/40"
+          onClick={() => onNavigate?.(folder.id)}
+        >
+          <FolderIcon className="size-9 text-amber-500" />
+          <NameWithTooltip value={folder.folderName} />
+          <p className="font-mono text-xs text-muted-foreground">{formatDateTime(folder.updatedAt)}</p>
+        </button>
+      </ContextMenuTrigger>
+      <FolderMenuContent
+        folder={folder}
+        onRename={onRename}
+        onMove={onMove}
+        onViewDetails={onViewDetails}
+        onTrash={onTrash}
+        onRestore={onRestore}
+        onDeleteForever={onDeleteForever}
+      />
+    </ContextMenu>
+  )
+}
+
+function FileEntryCard({
+  file,
+  onOpenFile,
+  onRename,
+  onMove,
+  onViewDetails,
+  onTrash,
+  onRestore,
+  onDeleteForever
+}: {
+  file: UploadedFileRecord
+  onOpenFile?: (fileId: string, mode: 'preview' | 'download') => void
+  onRename?: (file: UploadedFileRecord) => void
+  onMove?: (file: UploadedFileRecord) => void
+  onViewDetails?: (file: UploadedFileRecord) => void
+  onTrash?: (file: UploadedFileRecord) => void
+  onRestore?: (file: UploadedFileRecord) => void
+  onDeleteForever?: (file: UploadedFileRecord) => void
+}) {
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -212,53 +301,107 @@ function FileEntryCard({
           <p className="font-mono text-xs text-muted-foreground">{formatDateTime(file.updatedAt)}</p>
         </button>
       </ContextMenuTrigger>
-      <ContextMenuContent>
-        {canOpen ? (
-          <ContextMenuItem onSelect={() => onOpenFile?.(file.id, 'download')}>
-            <ArrowDownToLine className="size-3.5" />
-            下载
-          </ContextMenuItem>
-        ) : null}
+      <FileMenuContent
+        file={file}
+        onOpenFile={onOpenFile}
+        onRename={onRename}
+        onMove={onMove}
+        onViewDetails={onViewDetails}
+        onTrash={onTrash}
+        onRestore={onRestore}
+        onDeleteForever={onDeleteForever}
+      />
+    </ContextMenu>
+  )
+}
 
-        {canRename || canMove || canViewDetails ? (
-          <>
-            {canOpen ? <ContextMenuSeparator /> : null}
-            {canRename ? <ContextMenuItem onSelect={() => onRename?.(file)}>重命名</ContextMenuItem> : null}
-            {canMove ? <ContextMenuItem onSelect={() => onMove?.(file)}>移动</ContextMenuItem> : null}
-            {canViewDetails ? (
-              <ContextMenuItem onSelect={() => onViewDetails?.(file)}>查看详细信息</ContextMenuItem>
-            ) : null}
-          </>
-        ) : null}
+function FolderEntryRow({
+  folder,
+  onNavigate,
+  onRename,
+  onMove,
+  onViewDetails,
+  onTrash,
+  onRestore,
+  onDeleteForever
+}: {
+  folder: UploadFolderRecord
+  onNavigate?: (folderId: string) => void
+  onRename?: (folder: UploadFolderRecord) => void
+  onMove?: (folder: UploadFolderRecord) => void
+  onViewDetails?: (folder: UploadFolderRecord) => void
+  onTrash?: (folder: UploadFolderRecord) => void
+  onRestore?: (folder: UploadFolderRecord) => void
+  onDeleteForever?: (folder: UploadFolderRecord) => void
+}) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <tr className="border-b transition hover:bg-muted/40" onClick={() => onNavigate?.(folder.id)}>
+          <td className="max-w-0 px-3 py-2">
+            <EntryNameCell icon={<FolderIcon className="size-5 text-amber-500" />} value={folder.folderName} />
+          </td>
+          <td className="px-3 py-2 text-sm whitespace-nowrap text-muted-foreground">
+            {formatDateTime(folder.createdAt)}
+          </td>
+          <td className="px-3 py-2 text-sm whitespace-nowrap text-muted-foreground">-</td>
+        </tr>
+      </ContextMenuTrigger>
+      <FolderMenuContent
+        folder={folder}
+        onRename={onRename}
+        onMove={onMove}
+        onViewDetails={onViewDetails}
+        onTrash={onTrash}
+        onRestore={onRestore}
+        onDeleteForever={onDeleteForever}
+      />
+    </ContextMenu>
+  )
+}
 
-        {canTrash ? (
-          <>
-            {hasBaseActions ? <ContextMenuSeparator /> : null}
-            <ContextMenuItem variant="destructive" onSelect={() => onTrash?.(file)}>
-              <Trash2Icon className="size-3.5" />
-              放入回收站
-            </ContextMenuItem>
-          </>
-        ) : null}
-
-        {canRestore ? (
-          <>
-            {hasBaseActions || hasTrashAction ? <ContextMenuSeparator /> : null}
-            <ContextMenuItem onSelect={() => onRestore?.(file)}>还原</ContextMenuItem>
-          </>
-        ) : null}
-
-        {canDeleteForever ? (
-          <>
-            {hasBaseActions || hasTrashAction || canRestore ? <ContextMenuSeparator /> : null}
-            <ContextMenuItem variant="destructive" onSelect={() => onDeleteForever?.(file)}>
-              删除
-            </ContextMenuItem>
-          </>
-        ) : null}
-
-        {!hasAnyAction ? <ContextMenuItem disabled>No actions available</ContextMenuItem> : null}
-      </ContextMenuContent>
+function FileEntryRow({
+  file,
+  onOpenFile,
+  onRename,
+  onMove,
+  onViewDetails,
+  onTrash,
+  onRestore,
+  onDeleteForever
+}: {
+  file: UploadedFileRecord
+  onOpenFile?: (fileId: string, mode: 'preview' | 'download') => void
+  onRename?: (file: UploadedFileRecord) => void
+  onMove?: (file: UploadedFileRecord) => void
+  onViewDetails?: (file: UploadedFileRecord) => void
+  onTrash?: (file: UploadedFileRecord) => void
+  onRestore?: (file: UploadedFileRecord) => void
+  onDeleteForever?: (file: UploadedFileRecord) => void
+}) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <tr className="border-b transition hover:bg-muted/40">
+          <td className="max-w-0 px-3 py-2">
+            <EntryNameCell icon={resolveFileIcon(file)} value={file.fileName} />
+          </td>
+          <td className="px-3 py-2 text-sm whitespace-nowrap text-muted-foreground">
+            {formatDateTime(file.createdAt)}
+          </td>
+          <td className="px-3 py-2 text-sm whitespace-nowrap text-muted-foreground">{formatBytes(file.fileSize)}</td>
+        </tr>
+      </ContextMenuTrigger>
+      <FileMenuContent
+        file={file}
+        onOpenFile={onOpenFile}
+        onRename={onRename}
+        onMove={onMove}
+        onViewDetails={onViewDetails}
+        onTrash={onTrash}
+        onRestore={onRestore}
+        onDeleteForever={onDeleteForever}
+      />
     </ContextMenu>
   )
 }
@@ -266,6 +409,7 @@ function FileEntryCard({
 export function UploadEntryGrid({
   folders,
   files,
+  viewMode = 'grid',
   onNavigate,
   onOpenFile,
   onRenameFile,
@@ -286,6 +430,53 @@ export function UploadEntryGrid({
     return (
       <div className="min-h-65">
         <div className="border border-dashed p-10 text-center text-sm text-muted-foreground">{emptyMessage}</div>
+      </div>
+    )
+  }
+
+  if (viewMode === 'table') {
+    return (
+      <div className="min-h-65">
+        <div className="overflow-x-auto border">
+          <table className="w-full min-w-[720px] table-fixed border-collapse">
+            <thead className="bg-muted/30">
+              <tr className="border-b text-left text-xs text-muted-foreground">
+                <th className="px-3 py-2 font-medium">Name</th>
+                <th className="w-48 px-3 py-2 font-medium">Created Time</th>
+                <th className="w-36 px-3 py-2 font-medium">Size</th>
+              </tr>
+            </thead>
+            <tbody>
+              {folders.map(folder => (
+                <FolderEntryRow
+                  key={folder.id}
+                  folder={folder}
+                  onNavigate={onNavigate}
+                  onRename={onRenameFolder}
+                  onMove={onMoveFolder}
+                  onViewDetails={onViewDetailsFolder}
+                  onTrash={onTrashFolder}
+                  onRestore={onRestoreFolder}
+                  onDeleteForever={onDeleteForeverFolder}
+                />
+              ))}
+
+              {files.map(file => (
+                <FileEntryRow
+                  key={file.id}
+                  file={file}
+                  onOpenFile={onOpenFile}
+                  onRename={onRenameFile}
+                  onMove={onMoveFile}
+                  onViewDetails={onViewDetailsFile}
+                  onTrash={onTrashFile}
+                  onRestore={onRestoreFile}
+                  onDeleteForever={onDeleteForeverFile}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     )
   }

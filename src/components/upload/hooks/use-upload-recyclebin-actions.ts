@@ -1,7 +1,12 @@
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 
-import { getErrorMessage, recycleBinDeleteRequest, recycleBinRestoreRequest } from '@/lib/upload/client/api'
+import {
+  getErrorMessage,
+  recycleBinClearRequest,
+  recycleBinDeleteRequest,
+  recycleBinRestoreRequest
+} from '@/lib/upload/client/api'
 import type { UploadFolderRecord, UploadedFileRecord } from '@/lib/upload/shared'
 
 interface DeleteForeverTarget {
@@ -13,13 +18,16 @@ interface DeleteForeverTarget {
 interface UseUploadRecycleBinActionsInput {
   refresh: () => Promise<void>
   removeEntryOptimistic: (target: { id: string; type: 'file' | 'folder' }) => (() => void) | null
+  clearAllOptimistic: () => () => void
 }
 
 export function useUploadRecycleBinActions(input: UseUploadRecycleBinActionsInput) {
-  const { refresh, removeEntryOptimistic } = input
+  const { refresh, removeEntryOptimistic, clearAllOptimistic } = input
   const [isRestoring, setIsRestoring] = useState(false)
   const [isDeletingForever, setIsDeletingForever] = useState(false)
+  const [isClearing, setIsClearing] = useState(false)
   const [deleteForeverTarget, setDeleteForeverTarget] = useState<DeleteForeverTarget | null>(null)
+  const [isClearDialogOpen, setIsClearDialogOpen] = useState(false)
 
   const restoreEntry = useCallback(
     async (target: DeleteForeverTarget) => {
@@ -32,11 +40,11 @@ export function useUploadRecycleBinActions(input: UseUploadRecycleBinActionsInpu
         await recycleBinRestoreRequest({
           file_id: target.id
         })
-        toast.success(target.type === 'file' ? '文件已恢复' : '文件夹已恢复')
+        toast.success(target.type === 'file' ? 'File restored' : 'Folder restored')
         void refresh()
       } catch (error) {
         rollback?.()
-        toast.error(getErrorMessage(error, '恢复项目失败'))
+        toast.error(getErrorMessage(error, 'Failed to restore item'))
       } finally {
         setIsRestoring(false)
       }
@@ -115,15 +123,44 @@ export function useUploadRecycleBinActions(input: UseUploadRecycleBinActionsInpu
     }
   }, [])
 
+  const onClearRecycleBin = useCallback(() => {
+    setIsClearDialogOpen(true)
+  }, [])
+
+  const onClearDialogOpenChange = useCallback((open: boolean) => {
+    setIsClearDialogOpen(open)
+  }, [])
+
+  const submitClearRecycleBin = useCallback(async () => {
+    const rollback = clearAllOptimistic()
+    setIsClearing(true)
+    setIsClearDialogOpen(false)
+    try {
+      await recycleBinClearRequest()
+      toast.success('Recycle bin cleared')
+      void refresh()
+    } catch (error) {
+      rollback()
+      toast.error(getErrorMessage(error, 'Failed to clear recycle bin'))
+    } finally {
+      setIsClearing(false)
+    }
+  }, [clearAllOptimistic, refresh])
+
   return {
     isRestoring,
     isDeletingForever,
+    isClearing,
+    isClearDialogOpen,
     deleteForeverTarget,
     onRestoreFile,
     onRestoreFolder,
     onDeleteForeverFile,
     onDeleteForeverFolder,
+    onClearRecycleBin,
     submitDeleteForever,
-    onDeleteForeverDialogOpenChange
+    submitClearRecycleBin,
+    onDeleteForeverDialogOpenChange,
+    onClearDialogOpenChange
   }
 }

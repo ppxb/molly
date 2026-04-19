@@ -3,6 +3,7 @@ import { FolderIcon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { UploadFabMenu } from '@/components/upload-fab-menu'
+import { ClearRecycleBinDialog } from '@/components/upload/clear-recyclebin-dialog'
 import { CreateFolderDialog } from '@/components/upload/create-folder-dialog'
 import { DeleteForeverDialog } from '@/components/upload/delete-forever-dialog'
 import { MoveEntryDialog } from '@/components/upload/move-entry-dialog'
@@ -26,6 +27,7 @@ import { ThemeToggle } from '../toggle-theme'
 
 function UploadDashboardContent() {
   const [activeView, setActiveView] = useState<'files' | 'recyclebin'>('files')
+  const [entryViewMode, setEntryViewMode] = useState<'grid' | 'table'>('grid')
 
   const {
     currentFolderId,
@@ -35,7 +37,11 @@ function UploadDashboardContent() {
     files,
     isLoadingEntries,
     isPanelVisible,
+    orderBy,
+    orderDirection,
     setCurrentFolderId,
+    setListOrderBy,
+    setListOrderDirection,
     setPanelVisible,
     currentFolderIdRef,
     currentPathRef,
@@ -49,21 +55,28 @@ function UploadDashboardContent() {
     files: recycleFiles,
     isLoadingRecycleBin,
     loadRecycleBinEntries,
-    removeEntryOptimistic
+    removeEntryOptimistic,
+    clearAllOptimistic
   } = useUploadRecycleBinEntries()
   const {
     isRestoring,
     isDeletingForever,
+    isClearing,
+    isClearDialogOpen,
     deleteForeverTarget,
     onRestoreFile,
     onRestoreFolder,
     onDeleteForeverFile,
     onDeleteForeverFolder,
+    onClearRecycleBin,
     submitDeleteForever,
-    onDeleteForeverDialogOpenChange
+    submitClearRecycleBin,
+    onDeleteForeverDialogOpenChange,
+    onClearDialogOpenChange
   } = useUploadRecycleBinActions({
     refresh: loadRecycleBinEntries,
-    removeEntryOptimistic
+    removeEntryOptimistic,
+    clearAllOptimistic
   })
 
   const quickUploadInputRef = useRef<HTMLInputElement>(null)
@@ -216,7 +229,13 @@ function UploadDashboardContent() {
             folders={folders}
             files={files}
             isLoading={isLoadingEntries}
+            orderBy={orderBy}
+            orderDirection={orderDirection}
+            viewMode={entryViewMode}
             onRefresh={refreshCurrentPath}
+            onChangeOrderBy={setListOrderBy}
+            onChangeOrderDirection={setListOrderDirection}
+            onChangeViewMode={setEntryViewMode}
             onNavigate={setCurrentFolderId}
             onOpenFile={openFileURL}
             onUploadFiles={() => quickUploadInputRef.current?.click()}
@@ -305,9 +324,11 @@ function UploadDashboardContent() {
             files={recycleFiles}
             isLoading={isLoadingRecycleBin}
             isRestoring={isRestoring}
+            isClearing={isClearing}
             onRefresh={() => {
               void loadRecycleBinEntries()
             }}
+            onClear={onClearRecycleBin}
             onRestoreFile={onRestoreFile}
             onRestoreFolder={onRestoreFolder}
             onDeleteForeverFile={onDeleteForeverFile}
@@ -321,6 +342,13 @@ function UploadDashboardContent() {
             isSubmitting={isDeletingForever}
             onOpenChange={onDeleteForeverDialogOpenChange}
             onConfirm={submitDeleteForever}
+          />
+
+          <ClearRecycleBinDialog
+            open={isClearDialogOpen}
+            isSubmitting={isClearing}
+            onOpenChange={onClearDialogOpenChange}
+            onConfirm={submitClearRecycleBin}
           />
         </>
       )}

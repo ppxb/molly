@@ -139,16 +139,32 @@ export function useUploadRecycleBinEntries() {
     }
   }, [])
 
+  const clearAllOptimistic = useCallback(() => {
+    const previousFolders = folders
+    const previousFiles = files
+
+    setFolders([])
+    setFiles([])
+    setNextMarker('')
+
+    return () => {
+      setFolders(previousFolders)
+      setFiles(previousFiles)
+    }
+  }, [files, folders])
+
   return {
     folders,
     files,
     nextMarker,
     isLoadingRecycleBin,
     loadRecycleBinEntries,
-    removeEntryOptimistic
+    removeEntryOptimistic,
+    clearAllOptimistic
   } satisfies RecycleBinEntriesResponse & {
     isLoadingRecycleBin: boolean
     loadRecycleBinEntries: () => Promise<void>
     removeEntryOptimistic: (target: { id: string; type: 'file' | 'folder' }) => (() => void) | null
+    clearAllOptimistic: () => () => void
   }
 }

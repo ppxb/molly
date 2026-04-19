@@ -16,7 +16,9 @@ interface UploadRecycleBinOverviewProps {
   files: RecycleBinFileRecord[]
   isLoading: boolean
   isRestoring?: boolean
+  isClearing?: boolean
   onRefresh: () => void
+  onClear: () => void
   onRestoreFile: (file: UploadedFileRecord) => void
   onRestoreFolder: (folder: UploadFolderRecord) => void
   onDeleteForeverFile: (file: UploadedFileRecord) => void
@@ -28,7 +30,9 @@ export function UploadRecycleBinOverview({
   files,
   isLoading,
   isRestoring = false,
+  isClearing = false,
   onRefresh,
+  onClear,
   onRestoreFile,
   onRestoreFolder,
   onDeleteForeverFile,
@@ -48,10 +52,16 @@ export function UploadRecycleBinOverview({
                 {isRestoring ? 'Restoring item...' : 'Items moved here can be restored later before expiration.'}
               </CardDescription>
             </div>
-            <Button variant="outline" onClick={onRefresh} disabled={isLoading}>
-              {isLoading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCcw className="size-4" />}
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={onRefresh} disabled={isLoading || isClearing}>
+                {isLoading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCcw className="size-4" />}
+                Refresh
+              </Button>
+              <Button variant="destructive" onClick={onClear} disabled={isLoading || isClearing}>
+                {isClearing ? <Loader2 className="size-4 animate-spin" /> : <Trash2Icon className="size-4" />}
+                Clear
+              </Button>
+            </div>
           </div>
         </CardHeader>
 

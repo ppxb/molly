@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useUploadBrowserStore } from '@/components/upload/stores/upload-browser-store'
-import { getErrorMessage, listUploadEntriesRequest } from '@/lib/upload/client/api'
+import { getErrorMessage, listUploadEntriesRequest, type FileListOrderBy } from '@/lib/upload/client/api'
 import type { UploadBreadcrumbItem, UploadedFileRecord } from '@/lib/upload/shared'
 
 function normalizeFolderID(folderId: string) {
   const normalized = folderId.trim()
   return normalized.length > 0 ? normalized : 'root'
 }
+
+type ListOrderDirection = 'ASC' | 'DESC'
 
 function resolveOptimisticLocation(input: {
   nextFolderId: string
@@ -81,6 +83,10 @@ export function useUploadBrowserEntries() {
   const foldersRef = useRef(folders)
   const filesRef = useRef(files)
   const lastLoadRequestRef = useRef(0)
+  const [orderBy, setOrderBy] = useState<FileListOrderBy>('name')
+  const [orderDirection, setOrderDirection] = useState<ListOrderDirection>('ASC')
+  const orderByRef = useRef<FileListOrderBy>(orderBy)
+  const orderDirectionRef = useRef<ListOrderDirection>(orderDirection)
 
   useEffect(() => {
     currentFolderIdRef.current = currentFolderId
@@ -102,6 +108,14 @@ export function useUploadBrowserEntries() {
     filesRef.current = files
   }, [files])
 
+  useEffect(() => {
+    orderByRef.current = orderBy
+  }, [orderBy])
+
+  useEffect(() => {
+    orderDirectionRef.current = orderDirection
+  }, [orderDirection])
+
   const loadEntries = useCallback(
     async (folderId: string) => {
       const targetFolderId = normalizeFolderID(folderId)
@@ -110,7 +124,10 @@ export function useUploadBrowserEntries() {
 
       setIsLoadingEntries(true)
       try {
-        const data = await listUploadEntriesRequest(targetFolderId)
+        const data = await listUploadEntriesRequest(targetFolderId, {
+          order_by: orderByRef.current,
+          order_direction: orderDirectionRef.current
+        })
         if (requestID !== lastLoadRequestRef.current) {
           return
         }
@@ -177,6 +194,30 @@ export function useUploadBrowserEntries() {
     void loadEntries(currentFolderId)
   }, [currentFolderId, loadEntries])
 
+  const setListOrderBy = useCallback(
+    (nextOrderBy: FileListOrderBy) => {
+      if (nextOrderBy === orderByRef.current) {
+        return
+      }
+      setOrderBy(nextOrderBy)
+      orderByRef.current = nextOrderBy
+      void loadEntries(currentFolderIdRef.current)
+    },
+    [loadEntries]
+  )
+
+  const setListOrderDirection = useCallback(
+    (nextDirection: ListOrderDirection) => {
+      if (nextDirection === orderDirectionRef.current) {
+        return
+      }
+      setOrderDirection(nextDirection)
+      orderDirectionRef.current = nextDirection
+      void loadEntries(currentFolderIdRef.current)
+    },
+    [loadEntries]
+  )
+
   const upsertFileInCurrentFolder = useCallback(
     (file: UploadedFileRecord) => {
       const targetFolderID = normalizeFolderID(file.folderId)
@@ -236,7 +277,11 @@ export function useUploadBrowserEntries() {
     files,
     isLoadingEntries,
     isPanelVisible,
+    orderBy,
+    orderDirection,
     setCurrentFolderId: navigateToFolder,
+    setListOrderBy,
+    setListOrderDirection,
     setPanelVisible,
     currentFolderIdRef,
     currentPathRef,

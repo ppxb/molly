@@ -256,6 +256,8 @@ export interface FileListResponse {
   next_marker: string
 }
 
+export type FileListOrderBy = 'name' | 'created_at' | 'updated_at' | 'size'
+
 export interface FileGetResponse {
   drive_id: string
   domain_id: string
@@ -386,6 +388,13 @@ export interface RecycleBinListItem {
 export interface RecycleBinListResponse {
   items: RecycleBinListItem[]
   next_marker: string
+}
+
+export interface RecycleBinClearResponse {
+  domain_id: string
+  drive_id: string
+  task_id: string
+  async_task_id: string
 }
 
 async function requestJSON<T>(path: string, body: unknown = {}) {
@@ -527,7 +536,7 @@ function listFileRequest(input: {
   image_url_process?: string
   video_thumbnail_process?: string
   fields?: string
-  order_by?: string
+  order_by?: FileListOrderBy
   order_direction?: 'ASC' | 'DESC'
 }) {
   return requestJSON<FileListResponse>('/v1/file/list', {
@@ -542,8 +551,8 @@ function listFileRequest(input: {
     video_thumbnail_process:
       input.video_thumbnail_process ?? 'video/snapshot,t_120000,f_jpg,m_lfit,w_256,ar_auto,m_fast',
     fields: input.fields ?? '*',
-    order_by: input.order_by ?? 'updated_at',
-    order_direction: input.order_direction ?? 'DESC'
+    order_by: input.order_by ?? 'name',
+    order_direction: input.order_direction ?? 'ASC'
   })
 }
 
@@ -552,7 +561,7 @@ export function listFileChildrenRequest(input: {
   parent_file_id: string
   limit?: number
   marker?: string
-  order_by?: string
+  order_by?: FileListOrderBy
   order_direction?: 'ASC' | 'DESC'
 }) {
   return listFileRequest({
@@ -560,8 +569,8 @@ export function listFileChildrenRequest(input: {
     parent_file_id: input.parent_file_id,
     limit: input.limit ?? 200,
     marker: input.marker,
-    order_by: input.order_by ?? 'updated_at',
-    order_direction: input.order_direction ?? 'DESC'
+    order_by: input.order_by ?? 'name',
+    order_direction: input.order_direction ?? 'ASC'
   })
 }
 
@@ -596,7 +605,13 @@ export function completeFileRequest(input: { drive_id?: string; upload_id: strin
   return requestJSON<FileCompleteResponse>('/v1/file/complete', input)
 }
 
-export function listUploadEntriesRequest(folderId: string) {
+export function listUploadEntriesRequest(
+  folderId: string,
+  options?: {
+    order_by?: FileListOrderBy
+    order_direction?: 'ASC' | 'DESC'
+  }
+) {
   const targetFolderId = folderId.trim() || 'root'
 
   return (async (): Promise<UploadEntriesResponse> => {
@@ -624,7 +639,9 @@ export function listUploadEntriesRequest(folderId: string) {
     }
 
     const listData = await listFileRequest({
-      parent_file_id: targetFolderId
+      parent_file_id: targetFolderId,
+      order_by: options?.order_by ?? 'name',
+      order_direction: options?.order_direction ?? 'ASC'
     })
 
     const folders: UploadFolderRecord[] = []
@@ -696,6 +713,12 @@ export function recycleBinTrashRequest(input: { drive_id?: string; file_id: stri
 
 export function recycleBinRestoreRequest(input: { drive_id?: string; file_id: string }) {
   return requestJSON<null>('/v1/recyclebin/restore', input)
+}
+
+export function recycleBinClearRequest(input?: { drive_id?: string }) {
+  return requestJSON<RecycleBinClearResponse>('/v1/recyclebin/clear', {
+    drive_id: input?.drive_id
+  })
 }
 
 export function recycleBinDeleteRequest(input: { drive_id?: string; file_id: string }) {
