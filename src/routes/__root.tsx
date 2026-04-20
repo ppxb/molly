@@ -16,8 +16,8 @@ function notFoundComponent() {
     <div className="flex min-h-svh flex-col items-center justify-center bg-muted">
       <div className="w-full max-w-md">
         <Card>
-          <CardContent className="grid gap-6 p-6">
-            <div className="flex flex-col items-center gap-2 text-center">
+          <CardContent className="space-y-6">
+            <div className="flex flex-col items-center gap-6 text-center">
               <div className="font-mono text-8xl font-bold text-primary">404</div>
               <h1 className="text-2xl font-bold">Page Not Found</h1>
               <p className="text-sm text-muted-foreground">

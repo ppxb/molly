@@ -1,8 +1,7 @@
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useMatchRoute } from '@tanstack/react-router'
 import { HardDriveIcon } from 'lucide-react'
 import type { ComponentProps } from 'react'
 
-import { appNavigationItems } from '@/routes/navigation'
 import { useAppStore } from '@/stores/app-store'
 import {
   Sidebar,
@@ -16,23 +15,27 @@ import {
   SidebarMenuItem,
   SidebarSeparator
 } from '@/components/ui/sidebar'
+import { appNavItems } from '@/routes/navigation'
 
 export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
-  const pathname = useRouterState({
-    select: state => state.location.pathname
-  })
   const closeMobileSidebar = useAppStore(state => state.closeMobileSidebar)
+  const matchRoute = useMatchRoute()
 
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild size="lg" isActive={pathname === '/'} tooltip="首页">
-              <Link to="/" preload="intent" viewTransition onClick={closeMobileSidebar}>
+            <SidebarMenuButton
+              size="lg"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+            >
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                 <HardDriveIcon className="size-4" />
-                <span>Molly Drive</span>
-              </Link>
+              </div>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium">Molly Drive</span>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -42,24 +45,19 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarGroupLabel>主目录</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {appNavigationItems.map(item => {
-                const Icon = item.icon
-                const isActive = pathname === item.to
-
-                return (
-                  <SidebarMenuItem key={item.id}>
-                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.navLabel}>
-                      <Link to={item.to} preload="intent" viewTransition onClick={closeMobileSidebar}>
-                        <Icon className="size-4" />
-                        <span>{item.navLabel}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
+              {appNavItems.map(({ id, to, label, icon: Icon }) => (
+                <SidebarMenuItem key={id}>
+                  <SidebarMenuButton asChild tooltip={label} isActive={!!matchRoute({ to, fuzzy: false })}>
+                    <Link to={to} preload="intent" viewTransition onClick={closeMobileSidebar}>
+                      <Icon className="size-4" />
+                      <span>{label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -9,81 +9,79 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as DriveLayoutRouteImport } from './routes/drive/_layout'
-import { Route as DriveLayoutHomeRouteImport } from './routes/drive/_layout/home'
-import { Route as DriveLayoutFileRouteImport } from './routes/drive/_layout/file'
-import { Route as DriveLayoutSplatRouteImport } from './routes/drive/_layout/$'
+import { Route as AppHomeRouteImport } from './routes/_app/home'
+import { Route as AppFileRouteImport } from './routes/_app/file'
+import { Route as AppSplatRouteImport } from './routes/_app/$'
 
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DriveLayoutRoute = DriveLayoutRouteImport.update({
-  id: '/drive/_layout',
-  path: '/drive',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DriveLayoutHomeRoute = DriveLayoutHomeRouteImport.update({
+const AppHomeRoute = AppHomeRouteImport.update({
   id: '/home',
   path: '/home',
-  getParentRoute: () => DriveLayoutRoute,
+  getParentRoute: () => AppRoute,
 } as any)
-const DriveLayoutFileRoute = DriveLayoutFileRouteImport.update({
+const AppFileRoute = AppFileRouteImport.update({
   id: '/file',
   path: '/file',
-  getParentRoute: () => DriveLayoutRoute,
+  getParentRoute: () => AppRoute,
 } as any)
-const DriveLayoutSplatRoute = DriveLayoutSplatRouteImport.update({
+const AppSplatRoute = AppSplatRouteImport.update({
   id: '/$',
   path: '/$',
-  getParentRoute: () => DriveLayoutRoute,
+  getParentRoute: () => AppRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/drive': typeof DriveLayoutRouteWithChildren
-  '/drive/$': typeof DriveLayoutSplatRoute
-  '/drive/file': typeof DriveLayoutFileRoute
-  '/drive/home': typeof DriveLayoutHomeRoute
+  '/$': typeof AppSplatRoute
+  '/file': typeof AppFileRoute
+  '/home': typeof AppHomeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/drive': typeof DriveLayoutRouteWithChildren
-  '/drive/$': typeof DriveLayoutSplatRoute
-  '/drive/file': typeof DriveLayoutFileRoute
-  '/drive/home': typeof DriveLayoutHomeRoute
+  '/$': typeof AppSplatRoute
+  '/file': typeof AppFileRoute
+  '/home': typeof AppHomeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/drive/_layout': typeof DriveLayoutRouteWithChildren
-  '/drive/_layout/$': typeof DriveLayoutSplatRoute
-  '/drive/_layout/file': typeof DriveLayoutFileRoute
-  '/drive/_layout/home': typeof DriveLayoutHomeRoute
+  '/_app': typeof AppRouteWithChildren
+  '/_app/$': typeof AppSplatRoute
+  '/_app/file': typeof AppFileRoute
+  '/_app/home': typeof AppHomeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/drive' | '/drive/$' | '/drive/file' | '/drive/home'
+  fullPaths: '/' | '/$' | '/file' | '/home'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/drive' | '/drive/$' | '/drive/file' | '/drive/home'
-  id:
-    | '__root__'
-    | '/'
-    | '/drive/_layout'
-    | '/drive/_layout/$'
-    | '/drive/_layout/file'
-    | '/drive/_layout/home'
+  to: '/' | '/$' | '/file' | '/home'
+  id: '__root__' | '/' | '/_app' | '/_app/$' | '/_app/file' | '/_app/home'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DriveLayoutRoute: typeof DriveLayoutRouteWithChildren
+  AppRoute: typeof AppRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -91,56 +89,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/drive/_layout': {
-      id: '/drive/_layout'
-      path: '/drive'
-      fullPath: '/drive'
-      preLoaderRoute: typeof DriveLayoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/drive/_layout/home': {
-      id: '/drive/_layout/home'
+    '/_app/home': {
+      id: '/_app/home'
       path: '/home'
-      fullPath: '/drive/home'
-      preLoaderRoute: typeof DriveLayoutHomeRouteImport
-      parentRoute: typeof DriveLayoutRoute
+      fullPath: '/home'
+      preLoaderRoute: typeof AppHomeRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/drive/_layout/file': {
-      id: '/drive/_layout/file'
+    '/_app/file': {
+      id: '/_app/file'
       path: '/file'
-      fullPath: '/drive/file'
-      preLoaderRoute: typeof DriveLayoutFileRouteImport
-      parentRoute: typeof DriveLayoutRoute
+      fullPath: '/file'
+      preLoaderRoute: typeof AppFileRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/drive/_layout/$': {
-      id: '/drive/_layout/$'
+    '/_app/$': {
+      id: '/_app/$'
       path: '/$'
-      fullPath: '/drive/$'
-      preLoaderRoute: typeof DriveLayoutSplatRouteImport
-      parentRoute: typeof DriveLayoutRoute
+      fullPath: '/$'
+      preLoaderRoute: typeof AppSplatRouteImport
+      parentRoute: typeof AppRoute
     }
   }
 }
 
-interface DriveLayoutRouteChildren {
-  DriveLayoutSplatRoute: typeof DriveLayoutSplatRoute
-  DriveLayoutFileRoute: typeof DriveLayoutFileRoute
-  DriveLayoutHomeRoute: typeof DriveLayoutHomeRoute
+interface AppRouteChildren {
+  AppSplatRoute: typeof AppSplatRoute
+  AppFileRoute: typeof AppFileRoute
+  AppHomeRoute: typeof AppHomeRoute
 }
 
-const DriveLayoutRouteChildren: DriveLayoutRouteChildren = {
-  DriveLayoutSplatRoute: DriveLayoutSplatRoute,
-  DriveLayoutFileRoute: DriveLayoutFileRoute,
-  DriveLayoutHomeRoute: DriveLayoutHomeRoute,
+const AppRouteChildren: AppRouteChildren = {
+  AppSplatRoute: AppSplatRoute,
+  AppFileRoute: AppFileRoute,
+  AppHomeRoute: AppHomeRoute,
 }
 
-const DriveLayoutRouteWithChildren = DriveLayoutRoute._addFileChildren(
-  DriveLayoutRouteChildren,
-)
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DriveLayoutRoute: DriveLayoutRouteWithChildren,
+  AppRoute: AppRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
