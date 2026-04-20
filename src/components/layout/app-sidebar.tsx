@@ -15,7 +15,7 @@ import {
   SidebarMenuItem,
   SidebarSeparator
 } from '@/components/ui/sidebar'
-import { appNavItems } from '@/routes/navigation'
+import { appNavItems } from '@/routes/-navigation'
 
 export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
   const closeMobileSidebar = useAppStore(state => state.closeMobileSidebar)

@@ -10,7 +10,7 @@ function LoginPage() {
   const navigate = useNavigate()
 
   const handleLogin = () => {
-    navigate({ to: '/home' })
+    void navigate({ to: '/home' })
   }
 
   return (
