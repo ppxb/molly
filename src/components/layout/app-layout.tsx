@@ -1,78 +1,48 @@
-import { FolderIcon, HardDriveIcon } from 'lucide-react'
+import { useRouterState } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
+import { AppSidebar } from '@/components/layout/app-sidebar'
 import { ThemeToggle } from '@/components/toggle-theme'
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarSeparator,
-  SidebarTrigger
-} from '@/components/ui/sidebar'
-
-export type AppPageKey = 'files'
+import { getAppNavigationItem } from '@/routes/navigation'
+import { useAppStore } from '@/stores/app-store'
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 
 interface AppLayoutProps {
-  activePage: AppPageKey
-  onChangePage?: (page: AppPageKey) => void
-  secondarySidebar?: ReactNode
   children: ReactNode
 }
 
-const pageMeta: Record<AppPageKey, { title: string; description: string }> = {
-  files: {
-    title: '文件',
-    description: '浏览、上传和管理文件内容'
-  }
-}
+export function AppLayout({ children }: AppLayoutProps) {
+  const pathname = useRouterState({
+    select: state => state.location.pathname
+  })
+  const sidebarOpen = useAppStore(state => state.sidebarOpen)
+  const mobileSidebarOpen = useAppStore(state => state.mobileSidebarOpen)
+  const setSidebarOpen = useAppStore(state => state.setSidebarOpen)
+  const setMobileSidebarOpen = useAppStore(state => state.setMobileSidebarOpen)
 
-export function AppLayout({ activePage, onChangePage, secondarySidebar, children }: AppLayoutProps) {
-  const currentPage = pageMeta[activePage]
+  const currentPage = getAppNavigationItem(pathname)
+  const content = (
+    <div className="flex min-h-0 flex-1 overflow-hidden">
+      {currentPage.renderSecondarySidebar ? (
+        <aside className="hidden w-72 shrink-0 border-r border-border/70 bg-muted/20 md:block">
+          {currentPage.renderSecondarySidebar()}
+        </aside>
+      ) : null}
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  )
+
+  const shellContent = currentPage.renderShell ? currentPage.renderShell(content) : content
 
   return (
-    <SidebarProvider defaultOpen={true}>
-      <Sidebar collapsible="icon">
-        <SidebarHeader>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton size="lg" isActive={true}>
-                <HardDriveIcon className="size-4" />
-                <span>Molly Drive</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarHeader>
-
-        <SidebarSeparator />
-
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={activePage === 'files'}
-                    tooltip="文件"
-                    onClick={() => onChangePage?.('files')}
-                  >
-                    <FolderIcon className="size-4" />
-                    <span>文件</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-      </Sidebar>
+    <SidebarProvider
+      defaultOpen={true}
+      open={sidebarOpen}
+      onOpenChange={setSidebarOpen}
+      openMobile={mobileSidebarOpen}
+      onOpenMobileChange={setMobileSidebarOpen}
+    >
+      <AppSidebar />
 
       <SidebarInset>
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur">
@@ -89,14 +59,7 @@ export function AppLayout({ activePage, onChangePage, secondarySidebar, children
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-          {secondarySidebar ? (
-            <aside className="hidden w-72 shrink-0 border-r border-border/70 bg-muted/20 md:block">
-              {secondarySidebar}
-            </aside>
-          ) : null}
-          <div className="min-w-0 flex-1">{children}</div>
-        </div>
+        {shellContent}
       </SidebarInset>
     </SidebarProvider>
   )
