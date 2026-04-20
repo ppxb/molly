@@ -47,7 +47,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
         <SidebarGroup>
           <SidebarGroupLabel>主目录</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1">
               {appNavItems.map(({ id, to, label, icon: Icon }) => (
                 <SidebarMenuItem key={id}>
                   <SidebarMenuButton asChild tooltip={label} isActive={!!matchRoute({ to, fuzzy: false })}>
