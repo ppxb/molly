@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import { AppErrorBoundary } from '@/components/app-error-boundary'
-import { AppLayout, type AppPageKey } from '@/components/app-layout'
+import { AppLayout, type AppPageKey } from '@/components/layout/app-layout'
 import { Providers } from '@/components/providers'
 import { FilesWorkspaceProvider, FilesWorkspaceSecondarySidebar } from '@/features/files-workspace'
 import { FilesWorkspacePage } from '@/pages'
