@@ -21,7 +21,7 @@ export const useAppStore = create<AppStoreState>()(
       closeMobileSidebar: () => set({ mobileSidebarOpen: false })
     }),
     {
-      name: 'molly-app-shell',
+      name: 'molly-app',
       storage: createJSONStorage(() => localStorage),
       partialize: state => ({
         sidebarOpen: state.sidebarOpen
