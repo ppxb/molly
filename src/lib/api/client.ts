@@ -20,17 +20,15 @@ export function initApiClient(getToken: () => string | null, onUnauthorized: () 
   _onUnauthorized = onUnauthorized
 }
 
-async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function req<T>(path: string, init: RequestInit = {}) {
   const token = _getToken()
-  const headers: Record<string, string> = {
-    ...(init.headers as Record<string, string>)
-  }
+  const headers = new Headers(init.headers)
 
   // FormData 让浏览器自动设置 multipart boundary
-  if (!(init.body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json'
+  if (!(init.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
   }
-  if (token) headers['Authorization'] = `Bearer ${token}`
+  if (token) headers.set('Authorization', `Bearer ${token}`)
 
   let res: Response
   try {
@@ -57,11 +55,14 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 type Params = Record<string, string | number | boolean | undefined | null>
 
-function buildQuery(params: Params): string {
-  return Object.entries(params)
-    .filter(([, v]) => v !== undefined && v !== null && v !== '')
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-    .join('&')
+function buildQuery(params: Params) {
+  const searchParams = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') {
+      searchParams.append(k, String(v))
+    }
+  })
+  return searchParams.toString()
 }
 
 export const http = {
